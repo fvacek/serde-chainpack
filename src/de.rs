@@ -2,6 +2,7 @@ use std::io::{Read, BufReader, BufRead};
 
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
+use crate::types;
 use byteorder::{ReadBytesExt, BigEndian};
 
 pub struct Deserializer<R> {
@@ -45,27 +46,27 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         let type_byte = self.next_u8()?;
         match type_byte {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
-            0xC8 => visitor.visit_i64(self.reader.read_i64::<BigEndian>()?),
-            0xC9 => visitor.visit_u64(self.reader.read_u64::<BigEndian>()?),
-            0xCB => Err(Error::UnsupportedType),
-            0xCA => visitor.visit_f32(self.reader.read_f32::<BigEndian>()?),
-            0xE0 => {
+            types::CP_INT => visitor.visit_i64(self.reader.read_i64::<BigEndian>()?),
+            types::CP_UINT => visitor.visit_u64(self.reader.read_u64::<BigEndian>()?),
+            types::CP_DOUBLE => Err(Error::UnsupportedType),
+            types::CP_FLOAT => visitor.visit_f32(self.reader.read_f32::<BigEndian>()?),
+            types::CP_BLOB => {
                 let len = self.reader.read_u64::<BigEndian>()?;
                 let mut buf = vec![0; len as usize];
                 self.reader.read_exact(&mut buf)?;
                 visitor.visit_byte_buf(buf)
             }
-            0xE1 => {
+            types::CP_STRING => {
                 let mut buf = Vec::new();
                 self.reader.read_until(0, &mut buf)?;
                 buf.pop();
                 visitor.visit_string(String::from_utf8(buf)?)
             }
-            0xE2 => visitor.visit_seq(self),
-            0xE3 => visitor.visit_map(self),
-            0xFD => visitor.visit_bool(false),
-            0xFE => visitor.visit_bool(true),
-            0xFF => visitor.visit_unit(),
+            types::CP_LIST => visitor.visit_seq(self),
+            types::CP_MAP => visitor.visit_map(self),
+            types::CP_FALSE => visitor.visit_bool(false),
+            types::CP_TRUE => visitor.visit_bool(true),
+            types::CP_TERM => visitor.visit_unit(),
             _ => Err(Error::InvalidType),
         }
     }
@@ -74,7 +75,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        if self.peek_u8()? == 0xFF {
+        if self.peek_u8()? == types::CP_TERM {
             self.next_u8()?;
             visitor.visit_none()
         } else {
@@ -96,7 +97,7 @@ impl<'de, 'a, R: Read> SeqAccess<'de> for &'a mut Deserializer<R> {
     where
         T: de::DeserializeSeed<'de>,
     {
-        if self.peek_u8()? == 0xFF {
+        if self.peek_u8()? == types::CP_TERM {
             self.next_u8()?;
             return Ok(None);
         }
@@ -111,7 +112,7 @@ impl<'de, 'a, R: Read> MapAccess<'de> for &'a mut Deserializer<R> {
     where
         K: de::DeserializeSeed<'de>,
     {
-        if self.peek_u8()? == 0xFF {
+        if self.peek_u8()? == types::CP_TERM {
             self.next_u8()?;
             return Ok(None);
         }

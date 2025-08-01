@@ -1,6 +1,7 @@
 use std::io::Write;
 use serde::ser::{self, Serialize};
 use crate::error::{Result, Error};
+use crate::types;
 use byteorder::{WriteBytesExt, BigEndian};
 
 pub struct Serializer<W> {
@@ -26,7 +27,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
-        self.writer.write_u8(if v { 0xFE } else { 0xFD })?;
+        self.writer.write_u8(if v { types::CP_TRUE } else { types::CP_FALSE })?;
         Ok(())
     }
 
@@ -46,7 +47,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         if v >= 0 && v < 64 {
             self.writer.write_u8(v as u8)?;
         } else {
-            self.writer.write_u8(0xC8)?;
+            self.writer.write_u8(types::CP_INT)?;
             self.writer.write_i64::<BigEndian>(v)?;
         }
         Ok(())
@@ -68,7 +69,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         if v < 64 {
             self.writer.write_u8(v as u8)?;
         } else {
-            self.writer.write_u8(0xC9)?;
+            self.writer.write_u8(types::CP_UINT)?;
             self.writer.write_u64::<BigEndian>(v)?;
         }
         Ok(())
@@ -79,7 +80,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        self.writer.write_u8(0xCA)?;
+        self.writer.write_u8(types::CP_FLOAT)?;
         self.writer.write_f32::<BigEndian>(v)?;
         Ok(())
     }
@@ -89,14 +90,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        self.writer.write_u8(0xE1)?;
+        self.writer.write_u8(types::CP_STRING)?;
         self.writer.write_all(v.as_bytes())?;
         self.writer.write_u8(0)?;
         Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
-        self.writer.write_u8(0xE0)?;
+        self.writer.write_u8(types::CP_BLOB)?;
         self.writer.write_u64::<BigEndian>(v.len() as u64)?;
         self.writer.write_all(v)?;
         Ok(())
@@ -114,7 +115,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 
@@ -152,15 +153,15 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: Serialize,
     {
-        self.writer.write_u8(0xE3)?;
+        self.writer.write_u8(types::CP_MAP)?;
         variant.serialize(&mut *self)?;
         value.serialize(&mut *self)?;
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        self.writer.write_u8(0xE2)?;
+        self.writer.write_u8(types::CP_LIST)?;
         Ok(self)
     }
 
@@ -183,14 +184,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.writer.write_u8(0xE3)?;
+        self.writer.write_u8(types::CP_MAP)?;
         variant.serialize(&mut *self)?;
-        self.writer.write_u8(0xE2)?;
+        self.writer.write_u8(types::CP_LIST)?;
         Ok(self)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        self.writer.write_u8(0xE3)?;
+        self.writer.write_u8(types::CP_MAP)?;
         Ok(self)
     }
 
@@ -205,9 +206,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.writer.write_u8(0xE3)?;
+        self.writer.write_u8(types::CP_MAP)?;
         variant.serialize(&mut *self)?;
-        self.writer.write_u8(0xE3)?;
+        self.writer.write_u8(types::CP_MAP)?;
         Ok(self)
     }
 }
@@ -224,7 +225,7 @@ impl<'a, W: Write> ser::SerializeSeq for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -241,7 +242,7 @@ impl<'a, W: Write> ser::SerializeTuple for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -258,7 +259,7 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -275,8 +276,8 @@ impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -300,7 +301,7 @@ impl<'a, W: Write> ser::SerializeMap for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -318,7 +319,7 @@ impl<'a, W: Write> ser::SerializeStruct for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }
@@ -336,8 +337,8 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(0xFF)?;
-        self.writer.write_u8(0xFF)?;
+        self.writer.write_u8(types::CP_TERM)?;
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }

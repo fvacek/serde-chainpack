@@ -1,0 +1,12 @@
+pub const CP_NULL: u8 = 0x80;
+pub const CP_FALSE: u8 = 0xFD;
+pub const CP_TRUE: u8 = 0xFE;
+pub const CP_INT: u8 = 0xC8;
+pub const CP_UINT: u8 = 0xC9;
+pub const CP_FLOAT: u8 = 0xCA;
+pub const CP_DOUBLE: u8 = 0xCB;
+pub const CP_BLOB: u8 = 0xE0;
+pub const CP_STRING: u8 = 0xE1;
+pub const CP_LIST: u8 = 0xE2;
+pub const CP_MAP: u8 = 0xE3;
+pub const CP_TERM: u8 = 0xFF;
