@@ -59,6 +59,18 @@ fn test_str() {
 }
 
 #[test]
+fn test_f32() {
+    let mut buffer = Vec::new();
+    let mut serializer = Serializer::new(&mut buffer);
+    serde::Serializer::serialize_f32(&mut serializer, 123.456_f32).unwrap();
+    assert_eq!(buffer, vec![0xCA, 0x42, 0xF6, 0xE9, 0x79]);
+
+    let mut deserializer = Deserializer::from_reader(&buffer[..]);
+    let value = f32::deserialize(&mut deserializer).unwrap();
+    assert_eq!(value, 123.456_f32);
+}
+
+#[test]
 fn test_bytes() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);

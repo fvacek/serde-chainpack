@@ -47,7 +47,8 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
             0xC8 => visitor.visit_i64(self.reader.read_i64::<BigEndian>()?),
             0xC9 => visitor.visit_u64(self.reader.read_u64::<BigEndian>()?),
-            0xCB => visitor.visit_f64(self.reader.read_f64::<BigEndian>()?),
+            0xCB => Err(Error::UnsupportedType),
+            0xCA => visitor.visit_f32(self.reader.read_f32::<BigEndian>()?),
             0xE0 => {
                 let len = self.reader.read_u64::<BigEndian>()?;
                 let mut buf = vec![0; len as usize];

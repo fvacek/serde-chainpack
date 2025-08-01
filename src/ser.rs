@@ -78,8 +78,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         Err(Error::UnsupportedType)
     }
 
-    fn serialize_f32(self, _v: f32) -> Result<Self::Ok> {
-        Err(Error::UnsupportedType)
+    fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
+        self.writer.write_u8(0xCA)?;
+        self.writer.write_f32::<BigEndian>(v)?;
+        Ok(())
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
