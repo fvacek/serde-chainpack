@@ -3,7 +3,7 @@ use std::io::{Read, BufReader, BufRead};
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
 use crate::types;
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 pub struct Deserializer<R> {
     reader: BufReader<R>,
@@ -46,12 +46,11 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         let type_byte = self.next_u8()?;
         match type_byte {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
-            types::CP_INT => visitor.visit_i64(self.reader.read_i64::<BigEndian>()?),
-            types::CP_UINT => visitor.visit_u64(self.reader.read_u64::<BigEndian>()?),
-            types::CP_DOUBLE => Err(Error::UnsupportedType),
-            types::CP_FLOAT => visitor.visit_f32(self.reader.read_f32::<BigEndian>()?),
+            types::CP_INT => visitor.visit_i64(self.reader.read_i64::<LittleEndian>()?),
+            types::CP_UINT => visitor.visit_u64(self.reader.read_u64::<LittleEndian>()?),
+            types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_BLOB => {
-                let len = self.reader.read_u64::<BigEndian>()?;
+                let len = self.reader.read_u64::<LittleEndian>()?;
                 let mut buf = vec![0; len as usize];
                 self.reader.read_exact(&mut buf)?;
                 visitor.visit_byte_buf(buf)

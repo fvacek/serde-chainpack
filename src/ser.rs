@@ -2,7 +2,7 @@ use std::io::Write;
 use serde::ser::{self, Serialize};
 use crate::error::{Result, Error};
 use crate::types;
-use byteorder::{WriteBytesExt, BigEndian};
+use byteorder::{LittleEndian, WriteBytesExt};
 
 pub struct Serializer<W> {
     writer: W,
@@ -48,7 +48,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             self.writer.write_u8(v as u8)?;
         } else {
             self.writer.write_u8(types::CP_INT)?;
-            self.writer.write_i64::<BigEndian>(v)?;
+            self.writer.write_i64::<LittleEndian>(v)?;
         }
         Ok(())
     }
@@ -70,7 +70,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             self.writer.write_u8(v as u8)?;
         } else {
             self.writer.write_u8(types::CP_UINT)?;
-            self.writer.write_u64::<BigEndian>(v)?;
+            self.writer.write_u64::<LittleEndian>(v)?;
         }
         Ok(())
     }
@@ -80,8 +80,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        self.writer.write_u8(types::CP_FLOAT)?;
-        self.writer.write_f32::<BigEndian>(v)?;
+        self.writer.write_u8(types::CP_DOUBLE)?;
+        self.writer.write_f32::<LittleEndian>(v)?;
         Ok(())
     }
 
@@ -98,7 +98,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
         self.writer.write_u8(types::CP_BLOB)?;
-        self.writer.write_u64::<BigEndian>(v.len() as u64)?;
+        self.writer.write_u64::<LittleEndian>(v.len() as u64)?;
         self.writer.write_all(v)?;
         Ok(())
     }

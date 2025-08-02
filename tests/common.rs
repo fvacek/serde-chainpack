@@ -25,7 +25,7 @@ fn test_i64() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_i64(&mut serializer, 1234567890).unwrap();
-    assert_eq!(buffer, vec![0xC8, 0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2]);
+    assert_eq!(buffer, vec![0x81, 0xD2, 0x02, 0x96, 0x49, 0x00, 0x00, 0x00, 0x00]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = i64::deserialize(&mut deserializer).unwrap();
@@ -37,7 +37,7 @@ fn test_u64() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_u64(&mut serializer, 1234567890).unwrap();
-    assert_eq!(buffer, vec![0xC9, 0x00, 0x00, 0x00, 0x00, 0x49, 0x96, 0x02, 0xD2]);
+    assert_eq!(buffer, vec![0x82, 0xD2, 0x02, 0x96, 0x49, 0x00, 0x00, 0x00, 0x00]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = u64::deserialize(&mut deserializer).unwrap();
@@ -51,7 +51,7 @@ fn test_str() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_str(&mut serializer, "hello").unwrap();
-    assert_eq!(buffer, vec![0xE1, b'h', b'e', b'l', b'l', b'o', 0]);
+    assert_eq!(buffer, vec![0x86, b'h', b'e', b'l', b'l', b'o', 0]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = String::deserialize(&mut deserializer).unwrap();
@@ -63,7 +63,7 @@ fn test_f32() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_f32(&mut serializer, 123.456_f32).unwrap();
-    assert_eq!(buffer, vec![0xCA, 0x42, 0xF6, 0xE9, 0x79]);
+    assert_eq!(buffer, vec![0x83, 0x79, 0xE9, 0xF6, 0x42]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = f32::deserialize(&mut deserializer).unwrap();
@@ -75,7 +75,7 @@ fn test_bytes() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_bytes(&mut serializer, &[1, 2, 3, 4, 5]).unwrap();
-    assert_eq!(buffer, vec![0xE0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 2, 3, 4, 5]);
+    assert_eq!(buffer, vec![0x85, 5, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = ByteBuf::deserialize(&mut deserializer).unwrap();
@@ -87,7 +87,7 @@ fn test_option() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_some(&mut serializer, &123).unwrap();
-    assert_eq!(buffer, vec![0xC8, 0, 0, 0, 0, 0, 0, 0, 123]);
+    assert_eq!(buffer, vec![0x81, 123, 0, 0, 0, 0, 0, 0, 0]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Option<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -124,7 +124,7 @@ fn test_seq() {
     serde::ser::SerializeSeq::serialize_element(&mut seq, &2).unwrap();
     serde::ser::SerializeSeq::serialize_element(&mut seq, &3).unwrap();
     serde::ser::SerializeSeq::end(seq).unwrap();
-    assert_eq!(buffer, vec![0xE2, 1, 2, 3, 0xFF]);
+    assert_eq!(buffer, vec![0x88, 1, 2, 3, 0xFF]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Vec<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -139,7 +139,7 @@ fn test_map() {
     serde::ser::SerializeMap::serialize_entry(&mut map, "a", &1).unwrap();
     serde::ser::SerializeMap::serialize_entry(&mut map, "b", &2).unwrap();
     serde::ser::SerializeMap::end(map).unwrap();
-    assert_eq!(buffer, vec![0xE3, 0xE1, b'a', 0, 1, 0xE1, b'b', 0, 2, 0xFF]);
+    assert_eq!(buffer, vec![0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 2, 0xFF]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: std::collections::HashMap<String, i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -158,7 +158,7 @@ fn test_struct() {
         b: "hello".to_string(),
     };
     test_struct.serialize(&mut serializer).unwrap();
-    assert_eq!(buffer, vec![0xE3, 0xE1, b'a', 0, 1, 0xE1, b'b', 0, 0xE1, b'h', b'e', b'l', b'l', b'o', 0, 0xFF]);
+    assert_eq!(buffer, vec![0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 0x86, b'h', b'e', b'l', b'l', b'o', 0, 0xFF]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: TestStruct = serde::Deserialize::deserialize(&mut deserializer).unwrap();
