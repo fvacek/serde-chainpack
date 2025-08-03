@@ -23,8 +23,8 @@ pub enum Error {
     #[error("Invalid type")]
     InvalidType,
 
-    #[error("Not supported: {0}")]
-    NotSupported(String),
+    #[error("Invalid date/time value")]
+    InvalidDateTime,
 }
 
 impl serde::de::Error for Error {

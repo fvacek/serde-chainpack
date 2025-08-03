@@ -1,11 +1,23 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_BLOB, CP_DOUBLE, CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestStruct {
     a: i32,
     b: String,
+}
+
+#[test]
+fn test_datetime() {
+    let dt = DateTime::parse_from_rfc3339("2024-01-26T10:54:21+01:00").unwrap();
+    let mut buffer = Vec::new();
+    let mut serializer = Serializer::new(&mut buffer);
+    dt.serialize(&mut serializer).unwrap();
+
+    let mut deserializer = Deserializer::from_reader(&buffer[..]);
+    let value: DateTime<FixedOffset> = DateTime::deserialize(&mut deserializer).unwrap();
+    assert_eq!(value, dt);
 }
 
 #[test]
