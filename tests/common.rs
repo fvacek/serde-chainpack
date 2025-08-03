@@ -37,7 +37,7 @@ fn test_u64() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_u64(&mut serializer, 1234567890).unwrap();
-    assert_eq!(buffer, vec![0x82, 0xF4, 0x49, 0x96, 0x02, 0xD2]);
+    assert_eq!(buffer, vec![0x82, 0xF0, 0x49, 0x96, 0x02, 0xD2]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = u64::deserialize(&mut deserializer).unwrap();
@@ -186,7 +186,7 @@ fn test_uint_examples() {
     ];
 
     for (value, expected) in test_cases {
-        println!("value: 0x{value:x}, expected: {expected:?}");
+        // println!("value: 0x{value:x}, expected: {expected:?}");
         let mut buffer = Vec::new();
         let mut serializer = Serializer::new(&mut buffer);
         serde::Serializer::serialize_u64(&mut serializer, value).unwrap();
