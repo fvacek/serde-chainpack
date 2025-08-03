@@ -44,11 +44,43 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
+        let uv = if v < 0 { -v } else { v };
         if v >= 0 && v < 64 {
-            self.writer.write_u8(v as u8)?;
+            self.writer.write_u8(0x40 + v as u8)?;
         } else {
             self.writer.write_u8(types::CP_INT)?;
-            self.writer.write_i64::<LittleEndian>(v)?;
+            let bits = 64 - uv.leading_zeros() + 1;
+            if bits <= 7 {
+                let mut b = uv as u8;
+                if v != uv { b |= 0b0100_0000 }
+                self.writer.write_u8(b)?;
+            } else if bits <= 14 {
+                let mut b = 0b1000_0000 | (uv >> 8) as u8;
+                if v != uv { b |= 0b0010_0000 }
+                self.writer.write_u8(b)?;
+                self.writer.write_u8((uv & 0xFF) as u8)?;
+            } else if bits <= 21 {
+                let mut b = 0b1100_0000 | (uv >> 16) as u8;
+                if v != uv { b |= 0b0001_0000 }
+                self.writer.write_u8(b)?;
+                self.writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
+                self.writer.write_u8((uv & 0xFF) as u8)?;
+            } else if bits <= 28 {
+                let mut b = 0b1110_0000 | (uv >> 24) as u8;
+                if v != uv { b |= 0b0000_1000 }
+                self.writer.write_u8(b)?;
+                self.writer.write_u8(((uv >> 16) & 0xFF) as u8)?;
+                self.writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
+                self.writer.write_u8((uv & 0xFF) as u8)?;
+            } else {
+                let num_bytes = (bits as usize + 7) / 8;
+                self.writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
+                let bytes = uv.to_be_bytes();
+                let mut b = bytes[8 - num_bytes];
+                if v != uv { b |= 0b1000_0000 }
+                self.writer.write_u8(b)?;
+                self.writer.write_all(&v.to_be_bytes()[8 - num_bytes + 1..])?;
+            }
         }
         Ok(())
     }
