@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_UINT}};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_LIST, CP_NULL, CP_TERM, CP_UINT}};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestStruct {
@@ -76,7 +76,7 @@ fn test_bytes() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_bytes(&mut serializer, &[1, 2, 3, 4, 5]).unwrap();
-    assert_eq!(buffer, vec![0x85, 5, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]);
+    assert_eq!(buffer, vec![CP_LIST, 5, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = ByteBuf::deserialize(&mut deserializer).unwrap();
@@ -88,7 +88,7 @@ fn test_option() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_some(&mut serializer, &123).unwrap();
-    assert_eq!(buffer, vec![0x81, 123, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(buffer, vec![CP_INT, 0x80, 0x7b]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Option<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -97,7 +97,7 @@ fn test_option() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_none(&mut serializer).unwrap();
-    assert_eq!(buffer, vec![0xFF]);
+    assert_eq!(buffer, vec![CP_NULL]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Option<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -109,7 +109,7 @@ fn test_unit() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_unit(&mut serializer).unwrap();
-    assert_eq!(buffer, vec![0xFF]);
+    assert_eq!(buffer, vec![CP_TERM]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: () = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -125,7 +125,7 @@ fn test_seq() {
     serde::ser::SerializeSeq::serialize_element(&mut seq, &2).unwrap();
     serde::ser::SerializeSeq::serialize_element(&mut seq, &3).unwrap();
     serde::ser::SerializeSeq::end(seq).unwrap();
-    assert_eq!(buffer, vec![0x88, 1, 2, 3, 0xFF]);
+    assert_eq!(buffer, vec![0x88, 1, 2, 3, CP_TERM]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Vec<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -140,7 +140,7 @@ fn test_map() {
     serde::ser::SerializeMap::serialize_entry(&mut map, "a", &1).unwrap();
     serde::ser::SerializeMap::serialize_entry(&mut map, "b", &2).unwrap();
     serde::ser::SerializeMap::end(map).unwrap();
-    assert_eq!(buffer, vec![0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 2, 0xFF]);
+    assert_eq!(buffer, vec![0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 2, CP_TERM]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: std::collections::HashMap<String, i32> =
@@ -163,7 +163,7 @@ fn test_struct() {
     assert_eq!(
         buffer,
         vec![
-            0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 0x86, b'h', b'e', b'l', b'l', b'o', 0, 0xFF
+            0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 0x86, b'h', b'e', b'l', b'l', b'o', 0, CP_TERM
         ]
     );
 

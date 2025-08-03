@@ -166,7 +166,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok> {
-        self.writer.write_u8(types::CP_TERM)?;
+        self.writer.write_u8(types::CP_NULL)?;
         Ok(())
     }
 

@@ -141,7 +141,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             types::CP_MAP => visitor.visit_map(self),
             types::CP_FALSE => visitor.visit_bool(false),
             types::CP_TRUE => visitor.visit_bool(true),
-            types::CP_TERM => visitor.visit_unit(),
+            types::CP_NULL => visitor.visit_unit(),
             _ => Err(Error::InvalidType),
         }
     }
@@ -150,7 +150,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        if self.peek_u8()? == types::CP_TERM {
+        if self.peek_u8()? == types::CP_NULL {
             self.next_u8()?;
             visitor.visit_none()
         } else {
