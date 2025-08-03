@@ -3,7 +3,7 @@ use serde::ser::{self, Serialize};
 use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, WriteBytesExt};
-use chrono::{DateTime, FixedOffset, Timelike};
+use chrono::DateTime;
 
 pub struct Serializer<W> {
     writer: W,
