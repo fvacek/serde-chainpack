@@ -125,7 +125,7 @@ fn test_seq() {
     serde::ser::SerializeSeq::serialize_element(&mut seq, &2).unwrap();
     serde::ser::SerializeSeq::serialize_element(&mut seq, &3).unwrap();
     serde::ser::SerializeSeq::end(seq).unwrap();
-    assert_eq!(buffer, vec![0x88, 1, 2, 3, CP_TERM]);
+    assert_eq!(buffer, vec![0x88, 0x41, 0x42, 0x43, CP_TERM]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Vec<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
