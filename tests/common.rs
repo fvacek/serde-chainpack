@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_BLOB, CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestStruct {
@@ -76,7 +76,7 @@ fn test_bytes() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_bytes(&mut serializer, &[1, 2, 3, 4, 5]).unwrap();
-    assert_eq!(buffer, vec![CP_LIST, 5, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5]);
+    assert_eq!(buffer, vec![CP_BLOB, 5, 1, 2, 3, 4, 5]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = ByteBuf::deserialize(&mut deserializer).unwrap();
@@ -162,7 +162,7 @@ fn test_struct() {
     assert_eq!(
         buffer,
         vec![
-            0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 0x86, b'h', b'e', b'l', b'l', b'o', 0, CP_TERM
+            CP_MAP, CP_STRING, 1, b'a', 0x41, CP_STRING, 1, b'b', CP_STRING, 5,b'h', b'e', b'l', b'l', b'o', CP_TERM
         ]
     );
 
