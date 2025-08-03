@@ -1,4 +1,4 @@
-use std::io::{Read, BufReader, BufRead};
+use std::io::{Read, BufReader};
 
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
@@ -33,6 +33,35 @@ impl<R: Read> Deserializer<R> {
         }
         self.reader.read_u8()
             .map_err(Error::from)
+    }
+
+    fn read_u64_val(&mut self) -> Result<u64> {
+        let b1 = self.reader.read_u8()?;
+        let v = if b1 < 64 {
+            b1 as u64
+        } else if (b1 & 0xC0) == 0x80 {
+            let b2 = self.reader.read_u8()?;
+            (((b1 & 0x3F) as u64) << 8) | b2 as u64
+        } else if (b1 & 0xE0) == 0xC0 {
+            let b2 = self.reader.read_u8()?;
+            let b3 = self.reader.read_u8()?;
+            (((b1 & 0x1F) as u64) << 16) | ((b2 as u64) << 8) | b3 as u64
+        } else if (b1 & 0xF0) == 0xE0 {
+            let b2 = self.reader.read_u8()?;
+            let b3 = self.reader.read_u8()?;
+            let b4 = self.reader.read_u8()?;
+            (((b1 & 0x0F) as u64) << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64
+        } else {
+            let len = (b1 & 0x0F) as usize + 4;
+            let mut buf = vec![0u8; len];
+            self.reader.read_exact(&mut buf)?;
+            let mut val = 0u64;
+            for b in buf {
+                val = (val << 8) | b as u64;
+            }
+            val
+        };
+        Ok(v)
     }
 }
 
@@ -97,44 +126,20 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
                 visitor.visit_i64(v)
             }
             types::CP_UINT => {
-                let b1 = self.reader.read_u8()?;
-                let v = if b1 < 64 {
-                    b1 as u64
-                } else if (b1 & 0xC0) == 0x80 {
-                    let b2 = self.reader.read_u8()?;
-                    (((b1 & 0x3F) as u64) << 8) | b2 as u64
-                } else if (b1 & 0xE0) == 0xC0 {
-                    let b2 = self.reader.read_u8()?;
-                    let b3 = self.reader.read_u8()?;
-                    (((b1 & 0x1F) as u64) << 16) | ((b2 as u64) << 8) | b3 as u64
-                } else if (b1 & 0xF0) == 0xE0 {
-                    let b2 = self.reader.read_u8()?;
-                    let b3 = self.reader.read_u8()?;
-                    let b4 = self.reader.read_u8()?;
-                    (((b1 & 0x0F) as u64) << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64
-                } else {
-                    let len = (b1 & 0x0F) as usize + 4;
-                    let mut buf = vec![0u8; len];
-                    self.reader.read_exact(&mut buf)?;
-                    let mut val = 0u64;
-                    for b in buf {
-                        val = (val << 8) | b as u64;
-                    }
-                    val
-                };
+                let v = self.read_u64_val()?;
                 visitor.visit_u64(v)
             }
             types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_BLOB => {
-                let len = self.reader.read_u64::<LittleEndian>()?;
+                let len = self.read_u64_val()?;
                 let mut buf = vec![0; len as usize];
                 self.reader.read_exact(&mut buf)?;
                 visitor.visit_byte_buf(buf)
             }
             types::CP_STRING => {
-                let mut buf = Vec::new();
-                self.reader.read_until(0, &mut buf)?;
-                buf.pop();
+                let len = self.read_u64_val()?;
+                let mut buf = vec![0u8; len as usize];
+                self.reader.read_exact(&mut buf)?;
                 visitor.visit_string(String::from_utf8(buf)?)
             }
             types::CP_LIST => visitor.visit_seq(self),

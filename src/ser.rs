@@ -142,14 +142,17 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
         self.writer.write_u8(types::CP_STRING)?;
-        self.writer.write_all(v.as_bytes())?;
-        self.writer.write_u8(0)?;
+        let bytes = v.as_bytes();
+        let len = bytes.len() as u64;
+        self.serialize_u64(len)?;
+        self.writer.write_all(bytes)?;
         Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
         self.writer.write_u8(types::CP_BLOB)?;
-        self.writer.write_u64::<LittleEndian>(v.len() as u64)?;
+        let len = v.len() as u64;
+        self.serialize_u64(len)?;
         self.writer.write_all(v)?;
         Ok(())
     }

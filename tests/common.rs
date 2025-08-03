@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_LIST, CP_NULL, CP_TERM, CP_UINT}};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestStruct {
@@ -140,8 +140,7 @@ fn test_map() {
     serde::ser::SerializeMap::serialize_entry(&mut map, "a", &1).unwrap();
     serde::ser::SerializeMap::serialize_entry(&mut map, "b", &2).unwrap();
     serde::ser::SerializeMap::end(map).unwrap();
-    assert_eq!(buffer, vec![0x89, 0x86, b'a', 0, 1, 0x86, b'b', 0, 2, CP_TERM]);
-
+    assert_eq!(buffer, vec![CP_MAP, CP_STRING, 1, b'a', 0x41, CP_STRING, 1, b'b', 0x42, CP_TERM]);
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: std::collections::HashMap<String, i32> =
         serde::Deserialize::deserialize(&mut deserializer).unwrap();
