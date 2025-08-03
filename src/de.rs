@@ -37,22 +37,22 @@ impl<R: Read> Deserializer<R> {
 
     fn read_u64_val(&mut self) -> Result<u64> {
         let b1 = self.reader.read_u8()?;
-        let v = if b1 < 64 {
+        let v = if b1 < 128 {
             b1 as u64
-        } else if (b1 & 0xC0) == 0x80 {
+        } else if (b1 & MASK2) == PAT2 {
             let b2 = self.reader.read_u8()?;
-            (((b1 & 0x3F) as u64) << 8) | b2 as u64
-        } else if (b1 & 0xE0) == 0xC0 {
+            (((b1 & !MASK2) as u64) << 8) | b2 as u64
+        } else if (b1 & MASK3) == PAT3 {
             let b2 = self.reader.read_u8()?;
             let b3 = self.reader.read_u8()?;
-            (((b1 & 0x1F) as u64) << 16) | ((b2 as u64) << 8) | b3 as u64
-        } else if (b1 & 0xF0) == 0xE0 {
+            (((b1 & !MASK3) as u64) << 16) | ((b2 as u64) << 8) | b3 as u64
+        } else if (b1 & MASK4) == PAT4 {
             let b2 = self.reader.read_u8()?;
             let b3 = self.reader.read_u8()?;
             let b4 = self.reader.read_u8()?;
-            (((b1 & 0x0F) as u64) << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64
+            (((b1 & !MASK4) as u64) << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64
         } else {
-            let len = (b1 & 0x0F) as usize + 4;
+            let len = (b1 & !MASK5) as usize + 4;
             let mut buf = vec![0u8; len];
             self.reader.read_exact(&mut buf)?;
             let mut val = 0u64;
@@ -64,6 +64,21 @@ impl<R: Read> Deserializer<R> {
         Ok(v)
     }
 }
+
+const MASK1: u8 = 0b1000_0000;
+const PAT1: u8 = 0b0000_0000;
+const SGN1: u8 = 0b0100_0000;
+const MASK2: u8 = 0b1100_0000;
+const PAT2: u8 = 0b1000_0000;
+const SGN2: u8 = 0b0010_0000;
+const MASK3: u8 = 0b1110_0000;
+const PAT3: u8 = 0b1100_0000;
+const SGN3: u8 = 0b0001_0000;
+const MASK4: u8 = 0b1111_0000;
+const PAT4: u8 = 0b1110_0000;
+const SGN4: u8 = 0b0000_1000;
+const MASK5: u8 = 0b1111_0000;
+const SGN5: u8 = 0b1000_0000;
 
 impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     type Error = Error;
@@ -77,20 +92,6 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
             0x40..=0x7F => visitor.visit_i64(type_byte as i64 - 64),
             types::CP_INT => {
-                const MASK1: u8 = 0b1000_0000;
-                const PAT1: u8 = 0b0000_0000;
-                const SGN1: u8 = 0b0100_0000;
-                const MASK2: u8 = 0b1100_0000;
-                const PAT2: u8 = 0b1000_0000;
-                const SGN2: u8 = 0b0010_0000;
-                const MASK3: u8 = 0b1110_0000;
-                const PAT3: u8 = 0b1100_0000;
-                const SGN3: u8 = 0b0001_0000;
-                const MASK4: u8 = 0b1111_0000;
-                const PAT4: u8 = 0b1110_0000;
-                const SGN4: u8 = 0b0000_1000;
-                const MASK5: u8 = 0b1111_0000;
-                const SGN5: u8 = 0b1000_0000;
                 let b1 = self.reader.read_u8()?;
                 let v = if (b1 & MASK1) == PAT1 {
                     let uval = (b1 & !SGN1) as u64;

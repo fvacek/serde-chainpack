@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_BLOB, CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_BLOB, CP_DOUBLE, CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestStruct {
@@ -52,7 +52,7 @@ fn test_str() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_str(&mut serializer, "hello").unwrap();
-    assert_eq!(buffer, vec![0x86, b'h', b'e', b'l', b'l', b'o', 0]);
+    assert_eq!(buffer, vec![CP_STRING, 5, b'h', b'e', b'l', b'l', b'o']);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = String::deserialize(&mut deserializer).unwrap();
@@ -64,7 +64,7 @@ fn test_f32() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_f32(&mut serializer, 123.456_f32).unwrap();
-    assert_eq!(buffer, vec![0x83, 0x79, 0xE9, 0xF6, 0x42]);
+    assert_eq!(buffer, vec![CP_DOUBLE, 0x79, 0xE9, 0xF6, 0x42]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = f32::deserialize(&mut deserializer).unwrap();
@@ -109,7 +109,7 @@ fn test_unit() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_unit(&mut serializer).unwrap();
-    assert_eq!(buffer, vec![CP_TERM]);
+    assert_eq!(buffer, vec![CP_NULL]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: () = serde::Deserialize::deserialize(&mut deserializer).unwrap();
@@ -125,7 +125,7 @@ fn test_seq() {
     serde::ser::SerializeSeq::serialize_element(&mut seq, &2).unwrap();
     serde::ser::SerializeSeq::serialize_element(&mut seq, &3).unwrap();
     serde::ser::SerializeSeq::end(seq).unwrap();
-    assert_eq!(buffer, vec![0x88, 0x41, 0x42, 0x43, CP_TERM]);
+    assert_eq!(buffer, vec![CP_LIST, 0x41, 0x42, 0x43, CP_TERM]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: Vec<i32> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
