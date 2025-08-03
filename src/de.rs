@@ -47,7 +47,34 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         match type_byte {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
             types::CP_INT => visitor.visit_i64(self.reader.read_i64::<LittleEndian>()?),
-            types::CP_UINT => visitor.visit_u64(self.reader.read_u64::<LittleEndian>()?),
+            types::CP_UINT => {
+                let b1 = self.reader.read_u8()?;
+                let v = if b1 < 128 {
+                    b1 as u64
+                } else if (b1 & 0xC0) == 0x80 {
+                    let b2 = self.reader.read_u8()?;
+                    (((b1 & 0x3F) as u64) << 8) | b2 as u64
+                } else if (b1 & 0xE0) == 0xC0 {
+                    let b2 = self.reader.read_u8()?;
+                    let b3 = self.reader.read_u8()?;
+                    (((b1 & 0x1F) as u64) << 16) | ((b2 as u64) << 8) | b3 as u64
+                } else if (b1 & 0xF0) == 0xE0 {
+                    let b2 = self.reader.read_u8()?;
+                    let b3 = self.reader.read_u8()?;
+                    let b4 = self.reader.read_u8()?;
+                    (((b1 & 0x0F) as u64) << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64
+                } else {
+                    let len = (b1 & 0x0F) as usize + 4;
+                    let mut buf = vec![0u8; len];
+                    self.reader.read_exact(&mut buf)?;
+                    let mut val = 0u64;
+                    for b in buf {
+                        val = (val << 8) | b as u64;
+                    }
+                    val
+                };
+                visitor.visit_u64(v)
+            }
             types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_BLOB => {
                 let len = self.reader.read_u64::<LittleEndian>()?;

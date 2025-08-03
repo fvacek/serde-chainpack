@@ -70,7 +70,26 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             self.writer.write_u8(v as u8)?;
         } else {
             self.writer.write_u8(types::CP_UINT)?;
-            self.writer.write_u64::<LittleEndian>(v)?;
+            let bits = 64 - v.leading_zeros();
+            if bits <= 7 {
+                self.writer.write_u8(v as u8)?;
+            } else if bits <= 14 {
+                self.writer.write_u8(0x80 | (v >> 8) as u8)?;
+                self.writer.write_u8((v & 0xFF) as u8)?;
+            } else if bits <= 21 {
+                self.writer.write_u8(0xC0 | (v >> 16) as u8)?;
+                self.writer.write_u8(((v >> 8) & 0xFF) as u8)?;
+                self.writer.write_u8((v & 0xFF) as u8)?;
+            } else if bits <= 28 {
+                self.writer.write_u8(0xE0 | (v >> 24) as u8)?;
+                self.writer.write_u8(((v >> 16) & 0xFF) as u8)?;
+                self.writer.write_u8(((v >> 8) & 0xFF) as u8)?;
+                self.writer.write_u8((v & 0xFF) as u8)?;
+            } else {
+                let num_bytes = (bits as usize + 7) / 8;
+                self.writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
+                self.writer.write_all(&v.to_be_bytes()[8 - num_bytes..])?;
+            }
         }
         Ok(())
     }

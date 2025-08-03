@@ -1,4 +1,4 @@
-use serde_chainpack::{de::Deserializer, ser::Serializer};
+use serde_chainpack::{de::Deserializer, ser::Serializer, types::CP_UINT};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 
@@ -37,7 +37,7 @@ fn test_u64() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     serde::Serializer::serialize_u64(&mut serializer, 1234567890).unwrap();
-    assert_eq!(buffer, vec![0x82, 0xD2, 0x02, 0x96, 0x49, 0x00, 0x00, 0x00, 0x00]);
+    assert_eq!(buffer, vec![0x82, 0xF4, 0x49, 0x96, 0x02, 0xD2]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value = u64::deserialize(&mut deserializer).unwrap();
@@ -163,4 +163,37 @@ fn test_struct() {
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
     let value: TestStruct = serde::Deserialize::deserialize(&mut deserializer).unwrap();
     assert_eq!(value, test_struct);
+}
+
+#[test]
+fn test_uint_examples() {
+    let test_cases = vec![
+        (2u64, vec![0x02]),
+        (0x10u64, vec![0x10]),
+        (127u64, vec![CP_UINT, 0b01111111]),
+        (0x80u64, vec![CP_UINT, 0b10000000, 0b10000000]),
+        (0x200u64, vec![CP_UINT, 0b10000010, 0b00000000]),
+        (0x1000u64, vec![CP_UINT, 0b10010000, 0b00000000]),
+        (0x8000u64, vec![CP_UINT, 0xC0, 0x80, 0x00]),
+        (0x100000u64, vec![CP_UINT, 0b11010000, 0x00, 0x00]),
+        (0x800000u64, vec![CP_UINT, 0xE0, 0x80, 0x00, 0x00]),
+        (0x2000000u64, vec![CP_UINT, 0xE2, 0x00, 0x00, 0x00]),
+        (0x10000000u64, vec![CP_UINT, 0b11110000, 0b00010000, 0x00, 0x00, 0x00]),
+        (0x10_0000_0000u64, vec![CP_UINT, 0b11110001, 0b00010000, 0x00, 0x00, 0x00, 0x00]),
+        (0x1000_0000_0000u64, vec![CP_UINT, 0b11110010, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0x8000_0000_0000u64, vec![CP_UINT, 0b11110010, 0b10000000, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0x10_0000_0000_0000u64, vec![CP_UINT, 0b11110011, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+    ];
+
+    for (value, expected) in test_cases {
+        println!("value: 0x{value:x}, expected: {expected:?}");
+        let mut buffer = Vec::new();
+        let mut serializer = Serializer::new(&mut buffer);
+        serde::Serializer::serialize_u64(&mut serializer, value).unwrap();
+        assert_eq!(buffer, expected);
+
+        let mut deserializer = Deserializer::from_reader(&buffer[..]);
+        let deserialized_value = u64::deserialize(&mut deserializer).unwrap();
+        assert_eq!(deserialized_value, value);
+    }
 }
