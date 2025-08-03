@@ -74,6 +74,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     {
         let type_byte = self.next_u8()?;
         match type_byte {
+            0x00..=0x3F => visitor.visit_u64(type_byte as u64),
             0x40..=0x7F => visitor.visit_i64(type_byte as i64 - 64),
             types::CP_INT => {
                 const MASK1: u8 = 0b1000_0000;

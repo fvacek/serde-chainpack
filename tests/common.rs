@@ -184,36 +184,15 @@ fn test_uint_examples() {
         (0x100000u64, vec![CP_UINT, 0b11010000, 0x00, 0x00]),
         (0x800000u64, vec![CP_UINT, 0xE0, 0x80, 0x00, 0x00]),
         (0x2000000u64, vec![CP_UINT, 0xE2, 0x00, 0x00, 0x00]),
-        (
-            0x10000000u64,
-            vec![CP_UINT, 0b11110000, 0b00010000, 0x00, 0x00, 0x00],
-        ),
-        (
-            0x10_0000_0000u64,
-            vec![CP_UINT, 0b11110001, 0b00010000, 0x00, 0x00, 0x00, 0x00],
-        ),
-        (
-            0x1000_0000_0000u64,
-            vec![
-                CP_UINT, 0b11110010, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-        ),
-        (
-            0x8000_0000_0000u64,
-            vec![
-                CP_UINT, 0b11110010, 0b10000000, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-        ),
-        (
-            0x10_0000_0000_0000u64,
-            vec![
-                CP_UINT, 0b11110011, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            ],
-        ),
+        (0x10000000u64, vec![CP_UINT, 0b11110000, 0b00010000, 0x00, 0x00, 0x00]),
+        (0x10_0000_0000u64, vec![CP_UINT, 0b11110001, 0b00010000, 0x00, 0x00, 0x00, 0x00]),
+        (0x1000_0000_0000u64, vec![ CP_UINT, 0b11110010, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0x8000_0000_0000u64, vec![ CP_UINT, 0b11110010, 0b10000000, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        (0x10_0000_0000_0000u64, vec![ CP_UINT, 0b11110011, 0b00010000, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
     ];
 
     for (value, expected) in test_cases {
-        // println!("value: 0x{value:x}, expected: {expected:?}");
+        println!("value: 0x{value:x}, expected: {expected:x?}");
         let mut buffer = Vec::new();
         let mut serializer = Serializer::new(&mut buffer);
         serde::Serializer::serialize_u64(&mut serializer, value).unwrap();
