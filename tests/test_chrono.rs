@@ -11,6 +11,7 @@ struct TestDateTime {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Event {
+    #[serde(with = "serde_chainpack::chrono_datetime")]
     timestamp: DateTime<FixedOffset>,
 }
 
@@ -36,7 +37,7 @@ fn test_datetime_serialization_round_trip() {
         ("2017-05-03T15:52:03-01:30", vec![CP_DATETIME, 0b11110001, 0b10000010, 0b11010011, 0b00110000, 0b10001000, 0b00010101]),
         ("2017-05-03T15:52:03.923+00:00", vec![CP_DATETIME, 0x93, 0x03, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
     ];
-    for (dt_str, expected) in test_cases {
+    for (dt_str, _expected) in test_cases {
         // println!("dt: {dt_str}, expected: {expected:x?}");
         let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
         // {

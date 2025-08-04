@@ -1,5 +1,4 @@
 use std::io::Write;
-use chrono::DateTime;
 use serde::ser::{self, Serialize};
 use crate::error::{Result, Error};
 use crate::types;
@@ -149,13 +148,6 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        if let Ok(dt) = DateTime::parse_from_rfc3339(v) {
-            self.writer.write_u8(types::CP_DATETIME)?;
-            self.writer.write_i64::<LittleEndian>(dt.timestamp_millis())?;
-            self.writer.write_i32::<LittleEndian>(dt.offset().local_minus_utc())?;
-            return Ok(());
-        }
-
         self.writer.write_u8(types::CP_STRING)?;
         let bytes = v.as_bytes();
         let len = bytes.len() as u64;

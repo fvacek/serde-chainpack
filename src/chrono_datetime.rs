@@ -34,6 +34,8 @@ where
         val |= 2;
     }
 
+    println!("serialize: dt={:?}, val={}", dt, val);
+
     serializer.serialize_newtype_struct(std::any::type_name::<DateTime<FixedOffset>>(), &val)
 }
 
@@ -57,6 +59,7 @@ impl<'de> Visitor<'de> for DateTimeVisitor {
     where
         E: de::Error,
     {
+        println!("deserialize: value={}", value);
         let has_tz = value & 1 != 0;
         let no_msec = value & 2 != 0;
         let mut val = value >> 2;
@@ -85,6 +88,8 @@ impl<'de> Visitor<'de> for DateTimeVisitor {
 
         let offset = FixedOffset::east_opt(offset_secs)
             .ok_or_else(|| de::Error::custom(format!("invalid timezone offset: {}", offset_secs)))?;
+
+        println!("deserialize: final_msecs={}, offset_secs={}", final_msecs, offset_secs);
 
         Ok(naive_dt.with_timezone(&offset))
     }

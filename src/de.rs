@@ -1,6 +1,5 @@
 use std::io::{Read, BufReader};
 
-use chrono::{DateTime, FixedOffset};
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
 use crate::types;
@@ -141,10 +140,8 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_DATETIME => {
                 let epoch_msec = self.reader.read_i64::<LittleEndian>()?;
-                let utc_offset = self.reader.read_i32::<LittleEndian>()?;
-                let dt = DateTime::from_timestamp_millis(epoch_msec).ok_or(Error::InvalidDateTime)?;
-                let dt = dt.with_timezone(&FixedOffset::east_opt(utc_offset).unwrap());
-                visitor.visit_str(&dt.to_rfc3339())
+                self.reader.read_i32::<LittleEndian>()?;
+                visitor.visit_i64(epoch_msec)
             }
             types::CP_BLOB => {
                 let len = self.read_u64_val()?;
