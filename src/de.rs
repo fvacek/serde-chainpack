@@ -180,9 +180,29 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         }
     }
 
+    fn deserialize_newtype_struct<V>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        if name == types::CP_DATETIME_STRUCT {
+            let type_byte = self.next_u8()?;
+            if type_byte != types::CP_DATETIME {
+                return Err(Error::InvalidType);
+            }
+            let mut buf = vec![0; 12];
+            self.reader.read_exact(&mut buf)?;
+            return visitor.visit_bytes(&buf);
+        }
+        visitor.visit_newtype_struct(self)
+    }
+
     serde::forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf unit unit_struct newtype_struct seq tuple
+        bytes byte_buf unit unit_struct seq tuple
         tuple_struct map struct enum identifier ignored_any
     }
 }

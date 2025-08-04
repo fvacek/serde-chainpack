@@ -10,6 +10,7 @@ pub const CP_IMAP: u8 = 0x8a;
 pub const CP_META_MAP: u8 = 0x8b;
 pub const CP_DECIMAL: u8 = 0x8c;
 pub const CP_DATETIME: u8 = 0x8d;
+pub const CP_DATETIME_STRUCT: &str = "CPDateTime";
 pub const CP_CSTRING: u8 = 0x8e;
 pub const CP_BLOB_CHAIN: u8 = 0x8f;
 pub const CP_FALSE: u8 = 0xFD;

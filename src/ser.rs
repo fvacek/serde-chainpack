@@ -11,20 +11,13 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     Ok(writer)
 }
 
-#[derive(PartialEq, Eq)]
-enum State {
-    Default,
-    DateTime,
-}
-
 pub struct Serializer<W> {
     writer: W,
-    state: State,
 }
 
 impl<W: Write> Serializer<W> {
     pub fn new(writer: W) -> Self {
-        Serializer { writer, state: State::Default }
+        Serializer { writer }
     }
 }
 
@@ -43,6 +36,10 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     type SerializeMap = ser::Impossible<(), Error>;
     type SerializeStruct = ser::Impossible<(), Error>;
     type SerializeStructVariant = ser::Impossible<(), Error>;
+
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<Self::Ok> where T: Serialize {
+        value.serialize(self)
+    }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
         self.ser.writer.write_all(v).map_err(Error::from)
@@ -66,7 +63,7 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_unit(self) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
-    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, _value: &T) -> Result<Self::Ok> where T: Serialize { Err(Error::UnsupportedType) }
+
     fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _value: &T) -> Result<Self::Ok> where T: Serialize { Err(Error::UnsupportedType) }
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> { Err(Error::UnsupportedType) }
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> { Err(Error::UnsupportedType) }
@@ -103,16 +100,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
-        if self.state == State::DateTime {
-            return self.writer.write_i32::<LittleEndian>(v).map_err(Error::from);
-        }
         self.serialize_i64(v as i64)
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
-        if self.state == State::DateTime {
-            return self.writer.write_i64::<LittleEndian>(v).map_err(Error::from);
-        }
         let uv = if v < 0 { -v } else { v };
         if v >= 0 && v < 64 {
             self.writer.write_u8(0x40 + v as u8)?;
@@ -264,6 +255,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: Serialize,
     {
+        if name == types::CP_DATETIME_STRUCT {
+            self.writer.write_u8(types::CP_DATETIME)?;
+            return value.serialize(RawBytesSerializer { ser: self });
+        }
         if name == "RawBytes" {
             return value.serialize(RawBytesSerializer { ser: self });
         }
@@ -298,15 +293,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_tuple_struct(
         self,
-        name: &'static str,
+        _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        if name == "ChainPackDateTime" {
-            self.writer.write_u8(types::CP_DATETIME)?;
-            self.state = State::DateTime;
-        } else {
-            self.writer.write_u8(types::CP_LIST)?;
-        }
+        self.writer.write_u8(types::CP_LIST)?;
         Ok(self)
     }
 
@@ -392,11 +382,7 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        if self.state == State::DateTime {
-            self.state = State::Default;
-        } else {
-            self.writer.write_u8(types::CP_TERM)?;
-        }
+        self.writer.write_u8(types::CP_TERM)?;
         Ok(())
     }
 }

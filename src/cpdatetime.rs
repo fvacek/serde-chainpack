@@ -1,8 +1,9 @@
 use chrono::{DateTime, FixedOffset};
-use serde::{de, ser::SerializeTupleStruct, Deserializer, Serializer};
+use serde::{de, Deserializer, Serializer};
 use std::fmt;
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use serde::{Deserialize, Serialize};
+use crate::types;
 
 #[derive(Debug, PartialEq)]
 pub struct CPDateTime(pub DateTime<FixedOffset>);
@@ -19,24 +20,26 @@ impl From<CPDateTime> for DateTime<FixedOffset> {
     }
 }
 
+use serde_bytes::Bytes;
+
 impl Serialize for CPDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_tuple_struct("ChainPackDateTime", 2)?;
-        state.serialize_field(&self.0.timestamp_millis())?;
-        state.serialize_field(&self.0.offset().local_minus_utc())?;
-        state.end()
+        let mut writer = Vec::new();
+        writer.write_i64::<LittleEndian>(self.0.timestamp_millis()).map_err(serde::ser::Error::custom)?;
+        writer.write_i32::<LittleEndian>(self.0.offset().local_minus_utc()).map_err(serde::ser::Error::custom)?;
+        serializer.serialize_newtype_struct(types::CP_DATETIME_STRUCT, Bytes::new(&writer))
     }
 }
 
 impl<'de> Deserialize<'de> for CPDateTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
-        deserializer.deserialize_bytes(DateTimeVisitor).map(CPDateTime)
+        deserializer.deserialize_newtype_struct(types::CP_DATETIME_STRUCT, DateTimeVisitor).map(CPDateTime)
     }
 }
 
@@ -49,16 +52,21 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
         formatter.write_str("a ChainPack DateTime")
     }
 
+    fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(self)
+    }
+
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        let mut reader = std::io::Cursor::new(v);
-        let type_byte = reader.read_u8().map_err(E::custom)?;
-        if type_byte != crate::types::CP_DATETIME {
-            return Err(E::custom("Expected CP_DATETIME type byte"));
+        if v.len() != 12 {
+            return Err(E::invalid_length(v.len(), &"12 bytes"));
         }
-
+        let mut reader = std::io::Cursor::new(v);
         let epoch_msec = reader.read_i64::<LittleEndian>().map_err(E::custom)?;
         let utc_offset = reader.read_i32::<LittleEndian>().map_err(E::custom)?;
 

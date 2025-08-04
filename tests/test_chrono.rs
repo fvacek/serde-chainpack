@@ -30,6 +30,7 @@ fn test_datetime_serialization_round_trip() {
         ("2017-05-03T15:52:03.923+00:00"),
     ];
     for dt_str in test_cases {
+        println!("Testing: {}", dt_str);
         let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
         let event = Event { timestamp: CPDateTime(dt) };
         let serialized = to_vec(&event).expect("serialization failed");
