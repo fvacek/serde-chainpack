@@ -124,7 +124,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
                 self.writer.write_u8(((v >> 16) & 0xFF) as u8)?;
                 self.writer.write_u8(((v >> 8) & 0xFF) as u8)?;
                 self.writer.write_u8((v & 0xFF) as u8)?;
-            } else {
+            }
+            else {
                 let num_bytes = (bits as usize + 7) / 8;
                 self.writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
                 self.writer.write_all(&v.to_be_bytes()[8 - num_bytes..])?;

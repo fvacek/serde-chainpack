@@ -1,13 +1,12 @@
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
-use serde_chainpack::{de::from_slice, ser::to_vec, types::CP_DATETIME};
+use serde_chainpack::{de::from_slice, ser::to_vec};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestDateTime {
     #[serde(with = "serde_chainpack::chrono_datetime")]
     dt: DateTime<FixedOffset>,
 }
-// tests/datetime.rs
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Event {
@@ -18,41 +17,30 @@ struct Event {
 #[test]
 fn test_datetime_serialization_round_trip() {
     let test_cases = vec![
-        ("2018-02-02T00:00:00.001+00:00", vec![CP_DATETIME, 0b00000100]),
-        ("2018-02-02T01:00:00.001+01:00", vec![CP_DATETIME, 0x01, 0x00, 0x00, 0x00, 0x01, 0x61, 0xa6, 0x83, 0xe1, 0x00, 0x0e, 0x10]),
-        ("2018-12-02T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x67, 0x69, 0x95, 0x80, 0x00, 0x00, 0x00]),
-        ("2018-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x60, 0xd3, 0xc2, 0x00, 0x00, 0x00, 0x00]),
-        ("2019-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x67, 0xf9, 0x26, 0x80, 0x00, 0x00, 0x00]),
-        ("2020-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x6f, 0x1e, 0x8a, 0x80, 0x00, 0x00, 0x00]),
-        ("2021-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x76, 0x43, 0xee, 0x80, 0x00, 0x00, 0x00]),
-        ("2031-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0xc9, 0x9a, 0x5e, 0x80, 0x00, 0x00, 0x00]),
-        ("2041-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x02, 0x1c, 0xf1, 0xce, 0x80, 0x00, 0x00, 0x00]),
-        ("2041-03-04T00:00:00-10:15", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x02, 0x1d, 0x6b, 0x5d, 0xc0, 0xff, 0xff, 0x13, 0x44]),
-        ("2041-03-04T00:00:00.123-10:15", vec![CP_DATETIME, 0x7b, 0x00, 0x00, 0x00, 0x02, 0x1d, 0x6b, 0x5d, 0xc0, 0xff, 0xff, 0x13, 0x44]),
-        ("1970-01-01T00:00:00+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        ("2017-05-03T05:52:03+00:00", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
-        ("2017-05-03T15:52:03.923Z", vec![CP_DATETIME, 0x93, 0x03, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
-        ("2017-05-03T15:52:31.123+10:00", vec![CP_DATETIME, 0x7b, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x08, 0xca, 0x00]),
-        ("2017-05-03T15:52:03Z", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
-        ("2017-05-03T15:52:03-01:30", vec![CP_DATETIME, 0b11110001, 0b10000010, 0b11010011, 0b00110000, 0b10001000, 0b00010101]),
-        ("2017-05-03T15:52:03.923+00:00", vec![CP_DATETIME, 0x93, 0x03, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
+        ("2018-02-02T00:00:00.001+00:00"),
+        ("2018-02-02T01:00:00.001+01:00"),
+        ("2018-12-02T00:00:00+00:00"),
+        ("2018-01-01T00:00:00+00:00"),
+        ("2019-01-01T00:00:00+00:00"),
+        ("2020-01-01T00:00:00+00:00"),
+        ("2021-01-01T00:00:00+00:00"),
+        ("2031-01-01T00:00:00+00:00"),
+        ("2041-01-01T00:00:00+00:00"),
+        ("2041-03-04T00:00:00-10:15"),
+        ("2041-03-04T00:00:00.123-10:15"),
+        ("1970-01-01T00:00:00+00:00"),
+        ("2017-05-03T05:52:03+00:00"),
+        ("2017-05-03T15:52:03.923Z"),
+        ("2017-05-03T15:52:31.123+10:00"),
+        ("2017-05-03T15:52:03Z"),
+        ("2017-05-03T15:52:03-01:30"),
+        ("2017-05-03T15:52:03.923+00:00"),
     ];
-    for (dt_str, _expected) in test_cases {
-        // println!("dt: {dt_str}, expected: {expected:x?}");
+    for dt_str in test_cases {
         let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
-        // {
-        //     let serialized = to_vec(&dt).expect("serialization failed");
-        //     assert_eq!(expected, serialized);
-        //     let deserialized: DateTime<FixedOffset> = from_slice(&serialized).expect("deserialization failed");
-        //     // println!("ser: {event:?}, de: {deserialized:?}");
-        //     assert_eq!(dt, deserialized);
-        // }
-        {
-            let event = Event { timestamp: dt };
-            let serialized = to_vec(&event).expect("serialization failed");
-            let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
-            // println!("ser: {event:?}, de: {deserialized:?}");
-            assert_eq!(event, deserialized);
-        }
+        let event = Event { timestamp: dt };
+        let serialized = to_vec(&event).expect("serialization failed");
+        let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
+        assert_eq!(event, deserialized);
     }
 }

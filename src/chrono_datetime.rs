@@ -1,96 +1,88 @@
 use chrono::{DateTime, FixedOffset};
-use serde::de::{self, Visitor};
-use serde::{Deserializer, Serializer};
+use serde::{Serializer, Deserializer, de::{self, Visitor}};
 use std::fmt;
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use serde::{Serialize, Deserialize};
 
-const EPOCH: i64 = 1517529600000; // 2018-02-02T00:00:00Z in milliseconds
+pub struct ChainPackDateTime(pub DateTime<FixedOffset>);
 
 pub fn serialize<S>(dt: &DateTime<FixedOffset>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let mut val = dt.timestamp_millis() - EPOCH;
-    let mut has_tz = false;
-    let mut no_msec = false;
-
-    if dt.timestamp_subsec_millis() == 0 {
-        val /= 1000;
-        no_msec = true;
-    }
-
-    let offset_minutes = dt.offset().local_minus_utc() / 60;
-    if offset_minutes != 0 {
-        val <<= 7;
-        let tz_offset = (offset_minutes / 15) as i64;
-        val |= tz_offset & 0x7f;
-        has_tz = true;
-    }
-
-    val <<= 2;
-    if has_tz {
-        val |= 1;
-    }
-    if no_msec {
-        val |= 2;
-    }
-
-    println!("serialize: dt={:?}, val={}", dt, val);
-
-    serializer.serialize_newtype_struct(std::any::type_name::<DateTime<FixedOffset>>(), &val)
+    ChainPackDateTime(dt.clone()).serialize(serializer)
 }
 
 pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<FixedOffset>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_newtype_struct(std::any::type_name::<DateTime<FixedOffset>>(), DateTimeVisitor)
+    let wrapper = ChainPackDateTime::deserialize(deserializer)?;
+    Ok(wrapper.0)
+}
+
+impl serde::Serialize for ChainPackDateTime {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let dt = &self.0;
+        let epoch_msec = dt.timestamp_millis();
+        let utc_offset = dt.offset().local_minus_utc();
+
+        let mut writer = Vec::new();
+        writer.write_u8(crate::types::CP_DATETIME).map_err(serde::ser::Error::custom)?;
+        writer.write_i64::<LittleEndian>(epoch_msec).map_err(serde::ser::Error::custom)?;
+        writer.write_i32::<LittleEndian>(utc_offset).map_err(serde::ser::Error::custom)?;
+
+        serializer.serialize_bytes(&writer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChainPackDateTime {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(DateTimeVisitor)
+    }
 }
 
 struct DateTimeVisitor;
 
 impl<'de> Visitor<'de> for DateTimeVisitor {
-    type Value = DateTime<FixedOffset>;
+    type Value = ChainPackDateTime;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a ChainPack DateTime")
     }
 
-    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    fn visit_bytes<E>(self, v: &[u8]) -> std::result::Result<Self::Value, E>
     where
         E: de::Error,
     {
-        println!("deserialize: value={}", value);
-        let has_tz = value & 1 != 0;
-        let no_msec = value & 2 != 0;
-        let mut val = value >> 2;
+        let mut reader = std::io::Cursor::new(v);
+        let type_byte = reader.read_u8().map_err(E::custom)?;
+        if type_byte != crate::types::CP_DATETIME {
+            return Err(E::custom("Expected CP_DATETIME type byte"));
+        }
 
-        let offset_secs = if has_tz {
-            let tz_offset = (val & 0x7f) as i32;
-            val >>= 7;
-            if tz_offset & 0x40 != 0 {
-                (tz_offset | !0x7f) * 15 * 60
-            } else {
-                tz_offset * 15 * 60
-            }
-        } else {
-            0
-        };
+        let epoch_msec = reader.read_i64::<LittleEndian>().map_err(E::custom)?;
+        let utc_offset = reader.read_i32::<LittleEndian>().map_err(E::custom)?;
 
-        let msecs = if no_msec {
-            val * 1000
-        } else {
-            val
-        };
+        let dt = DateTime::from_timestamp_millis(epoch_msec)
+            .ok_or_else(|| E::custom(format!("invalid timestamp milliseconds: {}", epoch_msec)))?;
 
-        let final_msecs = msecs + EPOCH;
-        let naive_dt = DateTime::from_timestamp(final_msecs / 1000, (final_msecs.rem_euclid(1000) * 1_000_000) as u32)
-            .ok_or_else(|| de::Error::custom(format!("invalid timestamp milliseconds: {}", final_msecs)))?;
+        let offset = FixedOffset::east_opt(utc_offset)
+            .ok_or_else(|| E::custom(format!("invalid timezone offset: {}", utc_offset)))?;
 
-        let offset = FixedOffset::east_opt(offset_secs)
-            .ok_or_else(|| de::Error::custom(format!("invalid timezone offset: {}", offset_secs)))?;
+        Ok(ChainPackDateTime(dt.with_timezone(&offset)))
+    }
 
-        println!("deserialize: final_msecs={}, offset_secs={}", final_msecs, offset_secs);
-
-        Ok(naive_dt.with_timezone(&offset))
+    fn visit_byte_buf<E>(self, v: Vec<u8>) -> std::result::Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.visit_bytes(&v)
     }
 }
