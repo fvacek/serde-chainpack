@@ -1,7 +1,7 @@
 use chrono::{DateTime, FixedOffset};
-use serde::{de, Deserializer, Serializer};
+use serde::{de, ser::SerializeTupleStruct, Deserializer, Serializer};
 use std::fmt;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq)]
@@ -21,26 +21,20 @@ impl From<ChainPackDateTime> for DateTime<FixedOffset> {
 
 impl Serialize for ChainPackDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
-        let dt = &self.0;
-        let epoch_msec = dt.timestamp_millis();
-        let utc_offset = dt.offset().local_minus_utc();
-
-        let mut writer = Vec::new();
-        writer.write_u8(crate::types::CP_DATETIME).map_err(serde::ser::Error::custom)?;
-        writer.write_i64::<LittleEndian>(epoch_msec).map_err(serde::ser::Error::custom)?;
-        writer.write_i32::<LittleEndian>(utc_offset).map_err(serde::ser::Error::custom)?;
-
-        serializer.serialize_bytes(&writer)
+        let mut state = serializer.serialize_tuple_struct("ChainPackDateTime", 2)?;
+        state.serialize_field(&self.0.timestamp_millis())?;
+        state.serialize_field(&self.0.offset().local_minus_utc())?;
+        state.end()
     }
 }
 
 impl<'de> Deserialize<'de> for ChainPackDateTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_bytes(DateTimeVisitor).map(ChainPackDateTime)
     }
@@ -56,8 +50,8 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
     }
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-        where
-            E: de::Error,
+    where
+        E: de::Error,
     {
         let mut reader = std::io::Cursor::new(v);
         let type_byte = reader.read_u8().map_err(E::custom)?;
@@ -78,8 +72,8 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
     }
 
     fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
-        where
-            E: de::Error,
+    where
+        E: de::Error,
     {
         self.visit_bytes(&v)
     }

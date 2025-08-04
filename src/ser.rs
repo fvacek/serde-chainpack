@@ -4,7 +4,6 @@ use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, WriteBytesExt};
 
-
 pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     let mut writer = Vec::new();
     let mut serializer = Serializer::new(&mut writer);
@@ -12,13 +11,20 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     Ok(writer)
 }
 
+#[derive(PartialEq, Eq)]
+enum State {
+    Default,
+    DateTime,
+}
+
 pub struct Serializer<W> {
     writer: W,
+    state: State,
 }
 
 impl<W: Write> Serializer<W> {
     pub fn new(writer: W) -> Self {
-        Serializer { writer }
+        Serializer { writer, state: State::Default }
     }
 }
 
@@ -48,10 +54,16 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
+        if self.state == State::DateTime {
+            return self.writer.write_i32::<LittleEndian>(v).map_err(Error::from);
+        }
         self.serialize_i64(v as i64)
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
+        if self.state == State::DateTime {
+            return self.writer.write_i64::<LittleEndian>(v).map_err(Error::from);
+        }
         let uv = if v < 0 { -v } else { v };
         if v >= 0 && v < 64 {
             self.writer.write_u8(0x40 + v as u8)?;
@@ -234,10 +246,16 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_tuple_struct(
         self,
-        _name: &'static str,
-        len: usize,
+        name: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        self.serialize_seq(Some(len))
+        if name == "ChainPackDateTime" {
+            self.writer.write_u8(types::CP_DATETIME)?;
+            self.state = State::DateTime;
+        } else {
+            self.writer.write_u8(types::CP_LIST)?;
+        }
+        Ok(self)
     }
 
     fn serialize_tuple_variant(
@@ -322,7 +340,11 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
     }
 
     fn end(self) -> Result<Self::Ok> {
-        self.writer.write_u8(types::CP_TERM)?;
+        if self.state == State::DateTime {
+            self.state = State::Default;
+        } else {
+            self.writer.write_u8(types::CP_TERM)?;
+        }
         Ok(())
     }
 }
