@@ -1,10 +1,10 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
-use serde_chainpack::{chrono_datetime::ChainPackDateTime, de::from_slice, ser::to_vec};
+use serde_chainpack::{cpdatetime::CPDateTime, de::from_slice, ser::to_vec};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Event {
-    timestamp: ChainPackDateTime,
+    timestamp: CPDateTime,
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn test_datetime_serialization_round_trip() {
     ];
     for dt_str in test_cases {
         let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
-        let event = Event { timestamp: ChainPackDateTime(dt) };
+        let event = Event { timestamp: CPDateTime(dt) };
         let serialized = to_vec(&event).expect("serialization failed");
         let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
         assert_eq!(event, deserialized);

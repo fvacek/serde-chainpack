@@ -5,21 +5,21 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq)]
-pub struct ChainPackDateTime(pub DateTime<FixedOffset>);
+pub struct CPDateTime(pub DateTime<FixedOffset>);
 
-impl From<DateTime<FixedOffset>> for ChainPackDateTime {
+impl From<DateTime<FixedOffset>> for CPDateTime {
     fn from(dt: DateTime<FixedOffset>) -> Self {
-        ChainPackDateTime(dt)
+        CPDateTime(dt)
     }
 }
 
-impl From<ChainPackDateTime> for DateTime<FixedOffset> {
-    fn from(val: ChainPackDateTime) -> Self {
+impl From<CPDateTime> for DateTime<FixedOffset> {
+    fn from(val: CPDateTime) -> Self {
         val.0
     }
 }
 
-impl Serialize for ChainPackDateTime {
+impl Serialize for CPDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -31,12 +31,12 @@ impl Serialize for ChainPackDateTime {
     }
 }
 
-impl<'de> Deserialize<'de> for ChainPackDateTime {
+impl<'de> Deserialize<'de> for CPDateTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_bytes(DateTimeVisitor).map(ChainPackDateTime)
+        deserializer.deserialize_bytes(DateTimeVisitor).map(CPDateTime)
     }
 }
 
