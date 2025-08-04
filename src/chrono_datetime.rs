@@ -1,30 +1,28 @@
 use chrono::{DateTime, FixedOffset};
-use serde::{Serializer, Deserializer, de::{self, Visitor}};
+use serde::{de, Deserializer, Serializer};
 use std::fmt;
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
-use serde::{Serialize, Deserialize};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, PartialEq)]
 pub struct ChainPackDateTime(pub DateTime<FixedOffset>);
 
-pub fn serialize<S>(dt: &DateTime<FixedOffset>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    ChainPackDateTime(dt.clone()).serialize(serializer)
+impl From<DateTime<FixedOffset>> for ChainPackDateTime {
+    fn from(dt: DateTime<FixedOffset>) -> Self {
+        ChainPackDateTime(dt)
+    }
 }
 
-pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<FixedOffset>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let wrapper = ChainPackDateTime::deserialize(deserializer)?;
-    Ok(wrapper.0)
+impl From<ChainPackDateTime> for DateTime<FixedOffset> {
+    fn from(val: ChainPackDateTime) -> Self {
+        val.0
+    }
 }
 
-impl serde::Serialize for ChainPackDateTime {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+impl Serialize for ChainPackDateTime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
     {
         let dt = &self.0;
         let epoch_msec = dt.timestamp_millis();
@@ -39,27 +37,27 @@ impl serde::Serialize for ChainPackDateTime {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for ChainPackDateTime {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+impl<'de> Deserialize<'de> for ChainPackDateTime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
     {
-        deserializer.deserialize_bytes(DateTimeVisitor)
+        deserializer.deserialize_bytes(DateTimeVisitor).map(ChainPackDateTime)
     }
 }
 
 struct DateTimeVisitor;
 
-impl<'de> Visitor<'de> for DateTimeVisitor {
-    type Value = ChainPackDateTime;
+impl<'de> de::Visitor<'de> for DateTimeVisitor {
+    type Value = DateTime<FixedOffset>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a ChainPack DateTime")
     }
 
-    fn visit_bytes<E>(self, v: &[u8]) -> std::result::Result<Self::Value, E>
-    where
-        E: de::Error,
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+        where
+            E: de::Error,
     {
         let mut reader = std::io::Cursor::new(v);
         let type_byte = reader.read_u8().map_err(E::custom)?;
@@ -76,12 +74,12 @@ impl<'de> Visitor<'de> for DateTimeVisitor {
         let offset = FixedOffset::east_opt(utc_offset)
             .ok_or_else(|| E::custom(format!("invalid timezone offset: {}", utc_offset)))?;
 
-        Ok(ChainPackDateTime(dt.with_timezone(&offset)))
+        Ok(dt.with_timezone(&offset))
     }
 
-    fn visit_byte_buf<E>(self, v: Vec<u8>) -> std::result::Result<Self::Value, E>
-    where
-        E: de::Error,
+    fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+        where
+            E: de::Error,
     {
         self.visit_bytes(&v)
     }
