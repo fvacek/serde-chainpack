@@ -1,9 +1,16 @@
 use std::io::Write;
+use chrono::DateTime;
 use serde::ser::{self, Serialize};
 use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, WriteBytesExt};
-use chrono::DateTime;
+
+pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+    let mut writer = Vec::new();
+    let mut serializer = Serializer::new(&mut writer);
+    value.serialize(&mut serializer)?;
+    Ok(writer)
+}
 
 pub struct Serializer<W> {
     writer: W,

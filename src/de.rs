@@ -6,6 +6,12 @@ use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, ReadBytesExt};
 
+pub fn from_slice<'de, T: de::Deserialize<'de>>(s: &'de [u8]) -> Result<T> {
+    let mut deserializer = Deserializer::from_reader(s);
+    let value = T::deserialize(&mut deserializer)?;
+    Ok(value)
+}
+
 pub struct Deserializer<R> {
     reader: BufReader<R>,
     peeked: Option<u8>,

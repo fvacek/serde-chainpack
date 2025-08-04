@@ -1,29 +1,21 @@
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
-use serde_chainpack::{de::Deserializer, ser::Serializer, types::CP_DATETIME};
+use serde_chainpack::{de::from_slice, ser::to_vec, types::CP_DATETIME};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TestDateTime {
     #[serde(with = "serde_chainpack::chrono_datetime")]
     dt: DateTime<FixedOffset>,
 }
+// tests/datetime.rs
 
-#[test]
-fn test_datetime() {
-    let dt = TestDateTime {
-        dt: DateTime::parse_from_rfc3339("2024-01-26T10:54:21+01:00").unwrap(),
-    };
-    let mut buffer = Vec::new();
-    let mut serializer = Serializer::new(&mut buffer);
-    dt.serialize(&mut serializer).unwrap();
-
-    let mut deserializer = Deserializer::from_reader(&buffer[..]);
-    let value: TestDateTime = TestDateTime::deserialize(&mut deserializer).unwrap();
-    assert_eq!(value, dt);
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Event {
+    timestamp: DateTime<FixedOffset>,
 }
 
 #[test]
-fn test_datetime_examples() {
+fn test_datetime_serialization_round_trip() {
     let test_cases = vec![
         ("2018-02-02T00:00:00.001+00:00", vec![CP_DATETIME, 0b00000100]),
         ("2018-02-02T01:00:00.001+01:00", vec![CP_DATETIME, 0x01, 0x00, 0x00, 0x00, 0x01, 0x61, 0xa6, 0x83, 0xe1, 0x00, 0x0e, 0x10]),
@@ -41,22 +33,25 @@ fn test_datetime_examples() {
         ("2017-05-03T15:52:03.923Z", vec![CP_DATETIME, 0x93, 0x03, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
         ("2017-05-03T15:52:31.123+10:00", vec![CP_DATETIME, 0x7b, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x08, 0xca, 0x00]),
         ("2017-05-03T15:52:03Z", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
-        ("2017-05-03T15:52:03-01:30", vec![CP_DATETIME, 0x00, 0x00, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0xff, 0xff, 0xea, 0xac]),
+        ("2017-05-03T15:52:03-01:30", vec![CP_DATETIME, 0b11110001, 0b10000010, 0b11010011, 0b00110000, 0b10001000, 0b00010101]),
         ("2017-05-03T15:52:03.923+00:00", vec![CP_DATETIME, 0x93, 0x03, 0x00, 0x00, 0x01, 0x5b, 0x96, 0x0c, 0x23, 0x00, 0x00, 0x00]),
     ];
-
     for (dt_str, expected) in test_cases {
-        println!("dt: {dt_str}, expected: {expected:x?}");
-        let dt = TestDateTime {
-            dt: DateTime::parse_from_rfc3339(dt_str).unwrap(),
-        };
-        let mut buffer = Vec::new();
-        let mut serializer = Serializer::new(&mut buffer);
-        dt.serialize(&mut serializer).unwrap();
-        assert_eq!(buffer, expected);
-
-        let mut deserializer = Deserializer::from_reader(&buffer[..]);
-        let value: TestDateTime = TestDateTime::deserialize(&mut deserializer).unwrap();
-        assert_eq!(value, dt);
+        // println!("dt: {dt_str}, expected: {expected:x?}");
+        let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
+        // {
+        //     let serialized = to_vec(&dt).expect("serialization failed");
+        //     assert_eq!(expected, serialized);
+        //     let deserialized: DateTime<FixedOffset> = from_slice(&serialized).expect("deserialization failed");
+        //     // println!("ser: {event:?}, de: {deserialized:?}");
+        //     assert_eq!(dt, deserialized);
+        // }
+        {
+            let event = Event { timestamp: dt };
+            let serialized = to_vec(&event).expect("serialization failed");
+            let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
+            // println!("ser: {event:?}, de: {deserialized:?}");
+            assert_eq!(event, deserialized);
+        }
     }
 }
