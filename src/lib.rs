@@ -12,6 +12,6 @@ impl<T: AsRef<[u8]>> Serialize for RawBytes<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        serializer.serialize_newtype_struct("RawBytes", &self.0.as_ref())
+        serializer.serialize_bytes(self.0.as_ref())
     }
 }

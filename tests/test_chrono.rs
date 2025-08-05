@@ -32,9 +32,19 @@ fn test_datetime_serialization_round_trip() {
     for dt_str in test_cases {
         println!("Testing: {}", dt_str);
         let dt = DateTime::parse_from_rfc3339(dt_str).unwrap();
-        let event = Event { timestamp: CPDateTime(dt) };
-        let serialized = to_vec(&event).expect("serialization failed");
-        let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
-        assert_eq!(event, deserialized);
+        let cpdt = CPDateTime(dt);
+        {
+            let serialized = to_vec(&cpdt).expect("serialization failed");
+            println!("Serialized: {serialized:x?}");
+            let deserialized: CPDateTime = from_slice(&serialized).expect("deserialization failed");
+            assert_eq!(cpdt, deserialized);
+        }
+        {
+            let event = Event { timestamp: cpdt };
+            let serialized = to_vec(&event).expect("serialization failed");
+            println!("Serialized: {serialized:x?}");
+            let deserialized: Event = from_slice(&serialized).expect("deserialization failed");
+            assert_eq!(event, deserialized);
+        }
     }
 }

@@ -11,18 +11,8 @@ pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     Ok(writer)
 }
 
-pub struct Serializer<W> {
-    writer: W,
-}
-
-impl<W: Write> Serializer<W> {
-    pub fn new(writer: W) -> Self {
-        Serializer { writer }
-    }
-}
-
-pub struct RawBytesSerializer<'a, W: Write> {
-    ser: &'a mut Serializer<W>,
+struct RawBytesSerializer<'a, W: Write> {
+    pub(crate) ser: &'a mut Serializer<W>,
 }
 
 impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
@@ -72,6 +62,16 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> { Err(Error::UnsupportedType) }
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> { Err(Error::UnsupportedType) }
     fn serialize_struct_variant( self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> { Err(Error::UnsupportedType) }
+}
+
+pub struct Serializer<W> {
+    pub(crate) writer: W,
+}
+
+impl<W: Write> Serializer<W> {
+    pub fn new(writer: W) -> Self {
+        Serializer { writer }
+    }
 }
 
 impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
@@ -256,11 +256,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         T: Serialize,
     {
         if name == types::CP_DATETIME_STRUCT {
-            self.writer.write_u8(types::CP_DATETIME)?;
-            return value.serialize(RawBytesSerializer { ser: self });
-        }
-        if name == "RawBytes" {
-            return value.serialize(RawBytesSerializer { ser: self });
+            let rbs = RawBytesSerializer{ ser: self };
+            return value.serialize(rbs);
         }
         value.serialize(self)
     }

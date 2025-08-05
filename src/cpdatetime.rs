@@ -3,7 +3,8 @@ use serde::{de, Deserializer, Serializer};
 use std::fmt;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use serde::{Deserialize, Serialize};
-use crate::types;
+use serde::ser::Error;
+use crate::{types, RawBytes};
 
 #[derive(Debug, PartialEq)]
 pub struct CPDateTime(pub DateTime<FixedOffset>);
@@ -20,17 +21,16 @@ impl From<CPDateTime> for DateTime<FixedOffset> {
     }
 }
 
-use serde_bytes::Bytes;
-
 impl Serialize for CPDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer
     {
-        let mut writer = Vec::new();
-        writer.write_i64::<LittleEndian>(self.0.timestamp_millis()).map_err(serde::ser::Error::custom)?;
-        writer.write_i32::<LittleEndian>(self.0.offset().local_minus_utc()).map_err(serde::ser::Error::custom)?;
-        serializer.serialize_newtype_struct(types::CP_DATETIME_STRUCT, Bytes::new(&writer))
+        let mut buf = Vec::new();
+        buf.write_u8(types::CP_DATETIME).map_err(S::Error::custom)?;
+        buf.write_i64::<LittleEndian>(self.0.timestamp_millis()).map_err(S::Error::custom)?;
+        buf.write_i32::<LittleEndian>(self.0.offset().local_minus_utc()).map_err(S::Error::custom)?;
+        serializer.serialize_newtype_struct(types::CP_DATETIME_STRUCT, &RawBytes(buf))
     }
 }
 

@@ -3,7 +3,7 @@ use std::io::{Read, BufReader};
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
 use crate::types;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 pub fn from_slice<'de, T: de::Deserialize<'de>>(s: &'de [u8]) -> Result<T> {
     let mut deserializer = Deserializer::from_reader(s);
@@ -139,12 +139,8 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             }
             types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_DATETIME => {
-                let epoch_msec = self.reader.read_i64::<LittleEndian>()?;
-                let utc_offset = self.reader.read_i32::<LittleEndian>()?;
-                let mut buf = Vec::new();
-                buf.write_u8(type_byte).map_err(Error::from)?;
-                buf.write_i64::<LittleEndian>(epoch_msec).map_err(Error::from)?;
-                buf.write_i32::<LittleEndian>(utc_offset).map_err(Error::from)?;
+                let mut buf = vec![0; 12];
+                self.reader.read_exact(&mut buf)?;
                 visitor.visit_byte_buf(buf)
             }
             types::CP_BLOB => {
@@ -189,13 +185,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         V: Visitor<'de>,
     {
         if name == types::CP_DATETIME_STRUCT {
-            let type_byte = self.next_u8()?;
-            if type_byte != types::CP_DATETIME {
-                return Err(Error::InvalidType);
-            }
-            let mut buf = vec![0; 12];
-            self.reader.read_exact(&mut buf)?;
-            return visitor.visit_bytes(&buf);
+            return self.deserialize_any(visitor)
         }
         visitor.visit_newtype_struct(self)
     }
