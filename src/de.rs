@@ -2,7 +2,7 @@ use std::io::{Read, BufReader};
 
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
 use crate::error::{Result, Error};
-use crate::types;
+use crate::{cpdatetime, types};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 pub fn from_slice<'de, T: de::Deserialize<'de>>(s: &'de [u8]) -> Result<T> {
@@ -41,9 +41,9 @@ impl<R: Read> Deserializer<R> {
             .map_err(Error::from)
     }
 
-    fn read_u64_val(&mut self) -> Result<u64> {
+    fn read_u64_raw_val(&mut self) -> Result<u64> {
         let b1 = self.reader.read_u8()?;
-        let v = if b1 < 128 {
+        let v = if (b1 & MASK1) == PAT1 {
             b1 as u64
         } else if (b1 & MASK2) == PAT2 {
             let b2 = self.reader.read_u8()?;
@@ -66,6 +66,43 @@ impl<R: Read> Deserializer<R> {
                 val = (val << 8) | b as u64;
             }
             val
+        };
+        Ok(v)
+    }
+
+    fn read_i64_raw_val(&mut self) -> Result<i64> {
+        let b1 = self.reader.read_u8()?;
+        let v = if (b1 & MASK1) == PAT1 {
+            let uval = (b1 & !SGN1) as u64;
+            if b1 & SGN1 != 0 { - (uval as i64) } else { uval as i64 }
+        } else if (b1 & MASK2) == PAT2 {
+            let b2 = self.reader.read_u8()?;
+            let mut uval = (b1 & !MASK2 & !SGN2) as u64;
+            uval = (uval << 8) | b2 as u64;
+            if b1 & SGN2 != 0 { - (uval as i64) } else { uval as i64 }
+        } else if (b1 & MASK3) == PAT3 {
+            let b2 = self.reader.read_u8()?;
+            let b3 = self.reader.read_u8()?;
+            let mut uval = (b1 & !MASK3 & !SGN3) as u64;
+            uval = (uval << 16) | ((b2 as u64) << 8) | b3 as u64;
+            if b1 & SGN3 != 0 { - (uval as i64) } else { uval as i64 }
+        } else if (b1 & MASK4) == PAT4 {
+            let b2 = self.reader.read_u8()?;
+            let b3 = self.reader.read_u8()?;
+            let b4 = self.reader.read_u8()?;
+            let mut uval = (b1 & !MASK4 & !SGN4) as u64;
+            uval = (uval << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64;
+            if b1 & SGN4 != 0 { - (uval as i64) } else { uval as i64 }
+        } else {
+            let len = (b1 & !MASK5) as usize + 4;
+            let mut buf = vec![0u8; len];
+            self.reader.read_exact(&mut buf)?;
+            let is_neg = if buf[0] & SGN5 != 0 { buf[0] = buf[0] & !SGN5; true } else { false };
+            let mut uval = 0u64;
+            for b in buf {
+                uval = (uval << 8) | b as u64;
+            }
+            if is_neg { - (uval as i64) } else { uval as i64 }
         };
         Ok(v)
     }
@@ -98,59 +135,26 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             0x00..=0x3F => visitor.visit_u64(type_byte as u64),
             0x40..=0x7F => visitor.visit_i64(type_byte as i64 - 64),
             types::CP_INT => {
-                let b1 = self.reader.read_u8()?;
-                let v = if (b1 & MASK1) == PAT1 {
-                    let uval = (b1 & !SGN1) as u64;
-                    if b1 & SGN1 != 0 { - (uval as i64) } else { uval as i64 }
-                } else if (b1 & MASK2) == PAT2 {
-                    let b2 = self.reader.read_u8()?;
-                    let mut uval = (b1 & !MASK2 & !SGN2) as u64;
-                    uval = (uval << 8) | b2 as u64;
-                    if b1 & SGN2 != 0 { - (uval as i64) } else { uval as i64 }
-                } else if (b1 & MASK3) == PAT3 {
-                    let b2 = self.reader.read_u8()?;
-                    let b3 = self.reader.read_u8()?;
-                    let mut uval = (b1 & !MASK3 & !SGN3) as u64;
-                    uval = (uval << 16) | ((b2 as u64) << 8) | b3 as u64;
-                    if b1 & SGN3 != 0 { - (uval as i64) } else { uval as i64 }
-                } else if (b1 & MASK4) == PAT4 {
-                    let b2 = self.reader.read_u8()?;
-                    let b3 = self.reader.read_u8()?;
-                    let b4 = self.reader.read_u8()?;
-                    let mut uval = (b1 & !MASK4 & !SGN4) as u64;
-                    uval = (uval << 24) | ((b2 as u64) << 16) | ((b3 as u64) << 8) | b4 as u64;
-                    if b1 & SGN4 != 0 { - (uval as i64) } else { uval as i64 }
-                } else {
-                    let len = (b1 & !MASK5) as usize + 4;
-                    let mut buf = vec![0u8; len];
-                    self.reader.read_exact(&mut buf)?;
-                    let is_neg = if buf[0] & SGN5 != 0 { buf[0] = buf[0] & !SGN5; true } else { false };
-                    let mut uval = 0u64;
-                    for b in buf {
-                        uval = (uval << 8) | b as u64;
-                    }
-                    if is_neg { - (uval as i64) } else { uval as i64 }
-                };
+                let v = self.read_i64_raw_val()?;
                 visitor.visit_i64(v)
             }
             types::CP_UINT => {
-                let v = self.read_u64_val()?;
+                let v = self.read_u64_raw_val()?;
                 visitor.visit_u64(v)
             }
             types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
             types::CP_DATETIME => {
-                let mut buf = vec![0; 12];
-                self.reader.read_exact(&mut buf)?;
-                visitor.visit_byte_buf(buf)
+                let v = self.read_i64_raw_val()?;
+                visitor.visit_i64(v)
             }
             types::CP_BLOB => {
-                let len = self.read_u64_val()?;
+                let len = self.read_u64_raw_val()?;
                 let mut buf = vec![0; len as usize];
                 self.reader.read_exact(&mut buf)?;
                 visitor.visit_byte_buf(buf)
             }
             types::CP_STRING => {
-                let len = self.read_u64_val()?;
+                let len = self.read_u64_raw_val()?;
                 let mut buf = vec![0u8; len as usize];
                 self.reader.read_exact(&mut buf)?;
                 visitor.visit_string(String::from_utf8(buf)?)
@@ -184,7 +188,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        if name == types::CP_DATETIME_STRUCT {
+        if name == cpdatetime::CP_DATETIME_NEWTYPE_STRUCT {
             return self.deserialize_any(visitor)
         }
         visitor.visit_newtype_struct(self)

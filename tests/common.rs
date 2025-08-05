@@ -9,7 +9,6 @@ struct TestStruct {
 }
 
 
-
 #[test]
 fn test_bool() {
     let mut buffer = Vec::new();

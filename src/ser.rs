@@ -39,11 +39,15 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_i8(self, _v: i8) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_i16(self, _v: i16) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_i32(self, _v: i32) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
-    fn serialize_i64(self, _v: i64) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
+    fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
+        serialize_raw_i64(&mut self.ser.writer, v).map_err(Error::from)
+    }
     fn serialize_u8(self, _v: u8) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_u16(self, _v: u16) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_u32(self, _v: u32) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
-    fn serialize_u64(self, _v: u64) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
+    fn serialize_u64(self, v: u64) -> Result<Self::Ok> {
+        serialize_raw_u64(&mut self.ser.writer, v).map_err(Error::from)
+    }
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_f64(self, _v: f64) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
     fn serialize_char(self, _v: char) -> Result<Self::Ok> { Err(Error::UnsupportedType) }
@@ -62,6 +66,69 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> { Err(Error::UnsupportedType) }
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> { Err(Error::UnsupportedType) }
     fn serialize_struct_variant( self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> { Err(Error::UnsupportedType) }
+}
+
+fn serialize_raw_i64<W: Write>(writer: &mut W, v: i64) -> Result<()> {
+    let uv = if v < 0 { -v } else { v };
+    let bits = 64 - uv.leading_zeros() + 1;
+    if bits <= 7 {
+        let mut b = uv as u8;
+        if v != uv { b |= 0b0100_0000 }
+        writer.write_u8(b)?;
+    } else if bits <= 14 {
+        let mut b = 0b1000_0000 | (uv >> 8) as u8;
+        if v != uv { b |= 0b0010_0000 }
+        writer.write_u8(b)?;
+        writer.write_u8((uv & 0xFF) as u8)?;
+    } else if bits <= 21 {
+        let mut b = 0b1100_0000 | (uv >> 16) as u8;
+        if v != uv { b |= 0b0001_0000 }
+        writer.write_u8(b)?;
+        writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
+        writer.write_u8((uv & 0xFF) as u8)?;
+    } else if bits <= 28 {
+        let mut b = 0b1110_0000 | (uv >> 24) as u8;
+        if v != uv { b |= 0b0000_1000 }
+        writer.write_u8(b)?;
+        writer.write_u8(((uv >> 16) & 0xFF) as u8)?;
+        writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
+        writer.write_u8((uv & 0xFF) as u8)?;
+    } else {
+        let num_bytes = (bits as usize + 7) / 8;
+        writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
+        let bytes = uv.to_be_bytes();
+        let mut b = bytes[8 - num_bytes];
+        if v != uv { b |= 0b1000_0000 }
+        writer.write_u8(b)?;
+        let bytes = &bytes[8 - num_bytes + 1..];
+        writer.write_all(bytes)?;
+    }
+    Ok(())
+}
+
+fn serialize_raw_u64<W: Write>(writer: &mut W, v: u64) -> Result<()> {
+    let bits = 64 - v.leading_zeros();
+    if bits <= 7 {
+        writer.write_u8(v as u8)?;
+    } else if bits <= 14 {
+        writer.write_u8(0x80 | (v >> 8) as u8)?;
+        writer.write_u8((v & 0xFF) as u8)?;
+    } else if bits <= 21 {
+        writer.write_u8(0xC0 | (v >> 16) as u8)?;
+        writer.write_u8(((v >> 8) & 0xFF) as u8)?;
+        writer.write_u8((v & 0xFF) as u8)?;
+    } else if bits <= 28 {
+        writer.write_u8(0xE0 | (v >> 24) as u8)?;
+        writer.write_u8(((v >> 16) & 0xFF) as u8)?;
+        writer.write_u8(((v >> 8) & 0xFF) as u8)?;
+        writer.write_u8((v & 0xFF) as u8)?;
+    }
+    else {
+        let num_bytes = (bits as usize + 7) / 8;
+        writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
+        writer.write_all(&v.to_be_bytes()[8 - num_bytes..])?;
+    }
+    Ok(())
 }
 
 pub struct Serializer<W> {
@@ -104,43 +171,11 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
-        let uv = if v < 0 { -v } else { v };
         if v >= 0 && v < 64 {
             self.writer.write_u8(0x40 + v as u8)?;
         } else {
             self.writer.write_u8(types::CP_INT)?;
-            let bits = 64 - uv.leading_zeros() + 1;
-            if bits <= 7 {
-                let mut b = uv as u8;
-                if v != uv { b |= 0b0100_0000 }
-                self.writer.write_u8(b)?;
-            } else if bits <= 14 {
-                let mut b = 0b1000_0000 | (uv >> 8) as u8;
-                if v != uv { b |= 0b0010_0000 }
-                self.writer.write_u8(b)?;
-                self.writer.write_u8((uv & 0xFF) as u8)?;
-            } else if bits <= 21 {
-                let mut b = 0b1100_0000 | (uv >> 16) as u8;
-                if v != uv { b |= 0b0001_0000 }
-                self.writer.write_u8(b)?;
-                self.writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
-                self.writer.write_u8((uv & 0xFF) as u8)?;
-            } else if bits <= 28 {
-                let mut b = 0b1110_0000 | (uv >> 24) as u8;
-                if v != uv { b |= 0b0000_1000 }
-                self.writer.write_u8(b)?;
-                self.writer.write_u8(((uv >> 16) & 0xFF) as u8)?;
-                self.writer.write_u8(((uv >> 8) & 0xFF) as u8)?;
-                self.writer.write_u8((uv & 0xFF) as u8)?;
-            } else {
-                let num_bytes = (bits as usize + 7) / 8;
-                self.writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
-                let bytes = uv.to_be_bytes();
-                let mut b = bytes[8 - num_bytes];
-                if v != uv { b |= 0b1000_0000 }
-                self.writer.write_u8(b)?;
-                self.writer.write_all(&v.to_be_bytes()[8 - num_bytes + 1..])?;
-            }
+            serialize_raw_i64(&mut self.writer, v)?;
         }
         Ok(())
     }
@@ -162,27 +197,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
             self.writer.write_u8(v as u8)?;
         } else {
             self.writer.write_u8(types::CP_UINT)?;
-            let bits = 64 - v.leading_zeros();
-            if bits <= 7 {
-                self.writer.write_u8(v as u8)?;
-            } else if bits <= 14 {
-                self.writer.write_u8(0x80 | (v >> 8) as u8)?;
-                self.writer.write_u8((v & 0xFF) as u8)?;
-            } else if bits <= 21 {
-                self.writer.write_u8(0xC0 | (v >> 16) as u8)?;
-                self.writer.write_u8(((v >> 8) & 0xFF) as u8)?;
-                self.writer.write_u8((v & 0xFF) as u8)?;
-            } else if bits <= 28 {
-                self.writer.write_u8(0xE0 | (v >> 24) as u8)?;
-                self.writer.write_u8(((v >> 16) & 0xFF) as u8)?;
-                self.writer.write_u8(((v >> 8) & 0xFF) as u8)?;
-                self.writer.write_u8((v & 0xFF) as u8)?;
-            }
-            else {
-                let num_bytes = (bits as usize + 7) / 8;
-                self.writer.write_u8(0xF0 | ((num_bytes - 4) as u8))?;
-                self.writer.write_all(&v.to_be_bytes()[8 - num_bytes..])?;
-            }
+            serialize_raw_u64(&mut self.writer, v)?;
         }
         Ok(())
     }
@@ -255,7 +270,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: Serialize,
     {
-        if name == types::CP_DATETIME_STRUCT {
+        if name == crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT {
+            self.writer.write_u8(types::CP_DATETIME)?;
             let rbs = RawBytesSerializer{ ser: self };
             return value.serialize(rbs);
         }

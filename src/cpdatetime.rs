@@ -1,10 +1,9 @@
 use chrono::{DateTime, FixedOffset};
 use serde::{de, Deserializer, Serializer};
 use std::fmt;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use serde::{Deserialize, Serialize};
-use serde::ser::Error;
-use crate::{types, RawBytes};
+
+pub(crate) const CP_DATETIME_NEWTYPE_STRUCT: &str = "CPDateTime";
 
 #[derive(Debug, PartialEq)]
 pub struct CPDateTime(pub DateTime<FixedOffset>);
@@ -21,16 +20,38 @@ impl From<CPDateTime> for DateTime<FixedOffset> {
     }
 }
 
+const SHV_EPOCH_MSEC: i64 = 1517529600000;
+
 impl Serialize for CPDateTime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer
     {
-        let mut buf = Vec::new();
-        buf.write_u8(types::CP_DATETIME).map_err(S::Error::custom)?;
-        buf.write_i64::<LittleEndian>(self.0.timestamp_millis()).map_err(S::Error::custom)?;
-        buf.write_i32::<LittleEndian>(self.0.offset().local_minus_utc()).map_err(S::Error::custom)?;
-        serializer.serialize_newtype_struct(types::CP_DATETIME_STRUCT, &RawBytes(buf))
+        let mut val = self.0.timestamp_millis() - SHV_EPOCH_MSEC;
+        let mut has_tz = false;
+        let mut no_msec = false;
+
+        if self.0.timestamp_subsec_millis() == 0 {
+            val /= 1000;
+            no_msec = true;
+        }
+
+        let offset_minutes = self.0.offset().local_minus_utc() / 60;
+        if offset_minutes != 0 {
+            val <<= 7;
+            let tz_offset = (offset_minutes / 15) as i64;
+            val |= tz_offset & 0x7f;
+            has_tz = true;
+        }
+
+        val <<= 2;
+        if has_tz {
+            val |= 1;
+        }
+        if no_msec {
+            val |= 2;
+        }
+        serializer.serialize_newtype_struct(CP_DATETIME_NEWTYPE_STRUCT, &val)
     }
 }
 
@@ -39,7 +60,7 @@ impl<'de> Deserialize<'de> for CPDateTime {
         where
             D: Deserializer<'de>,
     {
-        deserializer.deserialize_newtype_struct(types::CP_DATETIME_STRUCT, DateTimeVisitor).map(CPDateTime)
+        deserializer.deserialize_newtype_struct(CP_DATETIME_NEWTYPE_STRUCT, DateTimeVisitor).map(CPDateTime)
     }
 }
 
@@ -56,33 +77,40 @@ impl<'de> de::Visitor<'de> for DateTimeVisitor {
         where
             D: Deserializer<'de>,
     {
-        deserializer.deserialize_bytes(self)
+        deserializer.deserialize_i64(self)
     }
 
-    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-    where
-        E: de::Error,
+    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error
     {
-        if v.len() != 12 {
-            return Err(E::invalid_length(v.len(), &"12 bytes"));
-        }
-        let mut reader = std::io::Cursor::new(v);
-        let epoch_msec = reader.read_i64::<LittleEndian>().map_err(E::custom)?;
-        let utc_offset = reader.read_i32::<LittleEndian>().map_err(E::custom)?;
+        let has_tz = v & 1 != 0;
+        let no_msec = v & 2 != 0;
+        let mut val = v >> 2;
 
-        let dt = DateTime::from_timestamp_millis(epoch_msec)
-            .ok_or_else(|| E::custom(format!("invalid timestamp milliseconds: {}", epoch_msec)))?;
+        let offset_secs = if has_tz {
+            let tz_offset = (val & 0x7f) as i32;
+            val >>= 7;
+            if tz_offset & 0x40 != 0 {
+                (tz_offset | !0x7f) * 15 * 60
+            } else {
+                tz_offset * 15 * 60
+            }
+        } else {
+            0
+        };
 
-        let offset = FixedOffset::east_opt(utc_offset)
-            .ok_or_else(|| E::custom(format!("invalid timezone offset: {}", utc_offset)))?;
+        let msecs = if no_msec {
+            val * 1000
+        } else {
+            val
+        };
 
-        Ok(dt.with_timezone(&offset))
-    }
-
-    fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        self.visit_bytes(&v)
+        let final_msecs = msecs + SHV_EPOCH_MSEC;
+        let naive_dt = DateTime::from_timestamp(final_msecs / 1000, (final_msecs.rem_euclid(1000) * 1_000_000) as u32)
+            .ok_or_else(|| de::Error::custom(format!("invalid timestamp milliseconds: {}", final_msecs)))?;
+        let offset = FixedOffset::east_opt(offset_secs)
+            .ok_or_else(|| de::Error::custom(format!("invalid timezone offset: {}", offset_secs)))?;
+        Ok(naive_dt.with_timezone(&offset))
     }
 }
