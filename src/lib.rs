@@ -59,7 +59,14 @@ mod tests {
     }
 
     #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct SubStruct {
+        number: i32,
+    }
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     struct MyStruct {
+        numbers: Vec<i32>,
+        both: (CPDateTime, i64),
+        sub: SubStruct,
         timestamp: CPDateTime,
         decimal: CPDecimal,
         maybe_decimal: Option<CPDecimal>,
@@ -67,14 +74,14 @@ mod tests {
         age: u32,
         salary: i32,
         weight: f64,
-        // TODO: Implement serialization and deserialization for this field
-        // both: (CPDecimal, CPDateTime),
     }
-
     #[test]
     fn test_struct_serde() {
         let dt = DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z").unwrap();
         let s = MyStruct {
+            numbers: vec![1, 2, 3, 4, 5],
+            both: (dt.into(), 42),
+            sub: SubStruct { number: 42 },
             timestamp: dt.into(),
             decimal: CPDecimal::new(12345, 6),
             maybe_decimal: None,
@@ -82,7 +89,6 @@ mod tests {
             age: 30,
             salary: 50000,
             weight: 70.5,
-            // both: (CPDecimal::new(0, -6), dt.into()),
         };
         let serialized = to_vec(&s).expect("serialization failed");
         println!("Serialized: \n{}", hex_dump(&serialized));

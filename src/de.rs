@@ -205,9 +205,22 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         visitor.visit_newtype_struct(self)
     }
 
+    fn deserialize_tuple<V>( self, len: usize, visitor: V, ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        if self.peek_u8()? == types::CP_LIST {
+            self.next_u8()?;
+            let ret = visitor.visit_seq(TupleSeqAccess::new(self, len));
+            ret
+        } else {
+            Err(Error::InvalidType)
+        }
+    }
+
     serde::forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf unit unit_struct seq tuple
+        bytes byte_buf unit unit_struct seq
         tuple_struct map struct enum identifier ignored_any
     }
 }
@@ -246,5 +259,36 @@ impl<'de, 'a, R: Read> MapAccess<'de> for &'a mut Deserializer<R> {
         V: de::DeserializeSeed<'de>,
     {
         seed.deserialize(&mut **self)
+    }
+}
+
+struct TupleSeqAccess<'a, R: Read> {
+    de: &'a mut Deserializer<R>,
+    remaining: usize,
+}
+
+impl<'a, R: Read> TupleSeqAccess<'a, R> {
+    fn new(de: &'a mut Deserializer<R>, len: usize) -> Self {
+        TupleSeqAccess { de, remaining: len }
+    }
+}
+
+impl<'de, 'a, R: Read> SeqAccess<'de> for TupleSeqAccess<'a, R> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: serde::de::DeserializeSeed<'de>,
+    {
+        self.remaining -= 1;
+        let value = seed.deserialize(&mut *self.de)?;
+        if self.remaining == 0 {
+            if self.de.peek_u8()? == types::CP_TERM {
+                self.de.next_u8()?;
+            } else {
+                return Err(Error::InvalidType)
+            }
+        }
+        Ok(Some(value))
     }
 }
