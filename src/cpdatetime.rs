@@ -2,11 +2,9 @@ use chrono::{DateTime, FixedOffset};
 use serde::{de, Deserializer, Serializer};
 use std::fmt;
 use serde::{Deserialize, Serialize};
+use crate::CPDateTime;
 
 pub(crate) const CP_DATETIME_NEWTYPE_STRUCT: &str = "CPDateTime";
-
-#[derive(Debug, PartialEq)]
-pub struct CPDateTime(pub DateTime<FixedOffset>);
 
 impl From<DateTime<FixedOffset>> for CPDateTime {
     fn from(dt: DateTime<FixedOffset>) -> Self {

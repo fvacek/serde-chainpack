@@ -1,6 +1,6 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
-use serde_chainpack::{cpdatetime::CPDateTime, de::from_slice, ser::to_vec, types::CP_DATETIME};
+use serde_chainpack::{de::from_slice, ser::to_vec, types::CP_DATETIME, CPDateTime};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Event {
