@@ -4,13 +4,6 @@ use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, WriteBytesExt};
 
-pub fn to_vec<T: Serialize>(value: &T) -> Result<Vec<u8>> {
-    let mut writer = Vec::new();
-    let mut serializer = Serializer::new(&mut writer);
-    value.serialize(&mut serializer)?;
-    Ok(writer)
-}
-
 struct RawBytesSerializer<'a, W: Write> {
     pub(crate) ser: &'a mut Serializer<W>,
 }
@@ -68,7 +61,7 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_struct_variant( self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> { Err(Error::UnsupportedType) }
 }
 
-fn serialize_raw_i64<W: Write>(writer: &mut W, v: i64) -> Result<()> {
+pub(crate) fn serialize_raw_i64<W: Write>(writer: &mut W, v: i64) -> Result<()> {
     let uv = if v < 0 { -v } else { v };
     let bits = 64 - uv.leading_zeros() + 1;
     if bits <= 7 {
@@ -106,7 +99,7 @@ fn serialize_raw_i64<W: Write>(writer: &mut W, v: i64) -> Result<()> {
     Ok(())
 }
 
-fn serialize_raw_u64<W: Write>(writer: &mut W, v: u64) -> Result<()> {
+pub(crate) fn serialize_raw_u64<W: Write>(writer: &mut W, v: u64) -> Result<()> {
     let bits = 64 - v.leading_zeros();
     if bits <= 7 {
         writer.write_u8(v as u8)?;
@@ -272,6 +265,10 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     {
         if name == crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT {
             self.writer.write_u8(types::CP_DATETIME)?;
+            let rbs = RawBytesSerializer{ ser: self };
+            return value.serialize(rbs);
+        }
+        else if name == crate::rawbytes::CP_RAWBYTES_NEWTYPE_STRUCT {
             let rbs = RawBytesSerializer{ ser: self };
             return value.serialize(rbs);
         }
@@ -476,5 +473,19 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
         self.writer.write_u8(types::CP_TERM)?;
         self.writer.write_u8(types::CP_TERM)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use serde::Serialize;
+
+    use super::Serializer;
+
+    pub(crate) fn to_vec<T: Serialize>(value: &T) -> crate::error::Result<Vec<u8>> {
+        let mut writer = Vec::new();
+        let mut serializer = Serializer::new(&mut writer);
+        value.serialize(&mut serializer)?;
+        Ok(writer)
     }
 }

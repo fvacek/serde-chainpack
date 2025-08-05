@@ -1,8 +1,10 @@
 use std::io::{Read, BufReader};
 
 use serde::de::{self, Visitor, SeqAccess, MapAccess};
+use crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT;
+use crate::cpdecimal::{DecimalDeserializer, CP_DECIMAL_NEWTYPE_STRUCT};
 use crate::error::{Result, Error};
-use crate::{cpdatetime, types};
+use crate::types;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 pub fn from_slice<'de, T: de::Deserialize<'de>>(s: &'de [u8]) -> Result<T> {
@@ -147,6 +149,12 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
                 let v = self.read_i64_raw_val()?;
                 visitor.visit_i64(v)
             }
+            types::CP_DECIMAL => {
+                let mantissa = self.read_i64_raw_val()?;
+                let exponent = self.read_i64_raw_val()?;
+                let mut deserializer = DecimalDeserializer { mantissa, exponent, state: 0 };
+                visitor.visit_seq(&mut deserializer)
+            }
             types::CP_BLOB => {
                 let len = self.read_u64_raw_val()?;
                 let mut buf = vec![0; len as usize];
@@ -188,7 +196,10 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: Visitor<'de>,
     {
-        if name == cpdatetime::CP_DATETIME_NEWTYPE_STRUCT {
+        if name == CP_DATETIME_NEWTYPE_STRUCT {
+            return self.deserialize_any(visitor)
+        }
+        else if name == CP_DECIMAL_NEWTYPE_STRUCT {
             return self.deserialize_any(visitor)
         }
         visitor.visit_newtype_struct(self)
