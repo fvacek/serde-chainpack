@@ -195,14 +195,14 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         Ok(())
     }
 
-    fn serialize_f64(self, _v: f64) -> Result<Self::Ok> {
-        Err(Error::UnsupportedType)
+    fn serialize_f64(self, v: f64) -> Result<Self::Ok> {
+        self.writer.write_u8(types::CP_DOUBLE)?;
+        self.writer.write_f64::<LittleEndian>(v)?;
+        Ok(())
     }
 
-    fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        self.writer.write_u8(types::CP_DOUBLE)?;
-        self.writer.write_f32::<LittleEndian>(v)?;
-        Ok(())
+    fn serialize_f32(self, _v: f32) -> Result<Self::Ok> {
+        Err(Error::UnsupportedType)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {

@@ -61,15 +61,15 @@ fn test_str() {
 }
 
 #[test]
-fn test_f32() {
+fn test_double() {
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
-    serde::Serializer::serialize_f32(&mut serializer, 123.456_f32).unwrap();
-    assert_eq!(buffer, vec![CP_DOUBLE, 0x79, 0xE9, 0xF6, 0x42]);
+    serde::Serializer::serialize_f64(&mut serializer, 123.456_f64).unwrap();
+    assert_eq!(buffer, vec![CP_DOUBLE, 119, 190, 159, 26, 47, 221, 94, 64]);
 
     let mut deserializer = Deserializer::from_reader(&buffer[..]);
-    let value = f32::deserialize(&mut deserializer).unwrap();
-    assert_eq!(value, 123.456_f32);
+    let value = f64::deserialize(&mut deserializer).unwrap();
+    assert_eq!(value, 123.456);
 }
 
 #[test]

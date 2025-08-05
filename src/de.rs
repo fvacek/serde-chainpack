@@ -144,7 +144,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
                 let v = self.read_u64_raw_val()?;
                 visitor.visit_u64(v)
             }
-            types::CP_DOUBLE => visitor.visit_f32(self.reader.read_f32::<LittleEndian>()?),
+            types::CP_DOUBLE => visitor.visit_f64(self.reader.read_f64::<LittleEndian>()?),
             types::CP_DATETIME => {
                 let v = self.read_i64_raw_val()?;
                 visitor.visit_i64(v)
