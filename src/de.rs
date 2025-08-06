@@ -1,6 +1,6 @@
 use std::io::{Read, BufReader};
 
-use serde::de::{self, Visitor, SeqAccess, MapAccess};
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT;
 use crate::cpdecimal::{DecimalDeserializer, CP_DECIMAL_NEWTYPE_STRUCT};
 use crate::error::{Result, Error};
@@ -169,6 +169,7 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             }
             types::CP_LIST => visitor.visit_seq(self),
             types::CP_MAP => visitor.visit_map(self),
+            types::CP_IMAP => visitor.visit_map(self),
             types::CP_FALSE => visitor.visit_bool(false),
             types::CP_TRUE => visitor.visit_bool(true),
             types::CP_NULL => visitor.visit_unit(),
@@ -244,20 +245,22 @@ impl<'de, 'a, R: Read> MapAccess<'de> for &'a mut Deserializer<R> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
-    where
-        K: de::DeserializeSeed<'de>,
-    {
-        if self.peek_u8()? == types::CP_TERM {
-            self.next_u8()?;
-            return Ok(None);
+        where
+            K: de::DeserializeSeed<'de>
+        {
+            if self.peek_u8()? == types::CP_TERM {
+                self.next_u8()?;
+                return Ok(None);
+            }
+            println!("MAP KEY");
+            seed.deserialize(&mut **self).map(Some)
         }
-        seed.deserialize(&mut **self).map(Some)
-    }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
     where
         V: de::DeserializeSeed<'de>,
     {
+        println!("MAP VALUE");
         seed.deserialize(&mut **self)
     }
 }

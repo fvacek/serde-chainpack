@@ -1,6 +1,10 @@
 use std::io::Write;
 use serde::ser::{self, Serialize};
+use serde::ser::Error as SerdeError;
+use crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT;
+use crate::cpistruct::CP_ISTRUCT_NEWTYPE_STRUCT;
 use crate::error::{Result, Error};
+use crate::rawbytes::CP_RAWBYTES_NEWTYPE_STRUCT;
 use crate::types;
 use byteorder::{LittleEndian, WriteBytesExt};
 
@@ -8,7 +12,7 @@ struct RawBytesSerializer<'a, W: Write> {
     pub(crate) ser: &'a mut Serializer<W>,
 }
 
-impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
+impl<'s, 'a, W: Write> ser::Serializer for &'s mut RawBytesSerializer<'a, W> {
     type Ok = ();
     type Error = Error;
 
@@ -17,7 +21,7 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     type SerializeTupleStruct = ser::Impossible<(), Error>;
     type SerializeTupleVariant = ser::Impossible<(), Error>;
     type SerializeMap = ser::Impossible<(), Error>;
-    type SerializeStruct = ser::Impossible<(), Error>;
+    type SerializeStruct = Self;
     type SerializeStructVariant = ser::Impossible<(), Error>;
 
     fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<Self::Ok> where T: Serialize {
@@ -56,9 +60,32 @@ impl<'a, W: Write> ser::Serializer for RawBytesSerializer<'a, W> {
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> { Err(Error::UnsupportedType) }
     fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> { Err(Error::UnsupportedType) }
     fn serialize_tuple_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeTupleVariant> { Err(Error::UnsupportedType) }
-    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> { Err(Error::UnsupportedType) }
-    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> { Err(Error::UnsupportedType) }
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {  Err(Error::UnsupportedType)  }
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        self.ser.writer.write_u8(types::CP_IMAP)?;
+        Ok(self)
+    }
     fn serialize_struct_variant( self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> { Err(Error::UnsupportedType) }
+}
+
+impl<'s, 'a, W: Write> ser::SerializeStruct for &'s mut RawBytesSerializer<'a, W> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<()>
+    where
+        T: Serialize,
+    {
+        let k = key.parse::<i64>().map_err(|e| Error::custom(e.to_string()))?;
+        self.ser.writer.write_u8(types::CP_INT)?;
+        k.serialize(&mut **self)?;
+        value.serialize(&mut *self.ser)
+    }
+
+    fn end(self) -> Result<Self::Ok> {
+        self.ser.writer.write_u8(types::CP_TERM)?;
+        Ok(())
+    }
 }
 
 pub(crate) fn serialize_raw_i64<W: Write>(writer: &mut W, v: i64) -> Result<()> {
@@ -263,14 +290,19 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
     where
         T: Serialize,
     {
-        if name == crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT {
+        println!("SER newtype struct: {name}");
+        if name == CP_DATETIME_NEWTYPE_STRUCT {
             self.writer.write_u8(types::CP_DATETIME)?;
-            let rbs = RawBytesSerializer{ ser: self };
-            return value.serialize(rbs);
+            let mut rbs = RawBytesSerializer{ ser: self };
+            return value.serialize(&mut rbs);
         }
-        else if name == crate::rawbytes::CP_RAWBYTES_NEWTYPE_STRUCT {
-            let rbs = RawBytesSerializer{ ser: self };
-            return value.serialize(rbs);
+        else if name == CP_RAWBYTES_NEWTYPE_STRUCT {
+            let mut rbs = RawBytesSerializer{ ser: self };
+            return value.serialize(&mut rbs);
+        }
+        else if name == CP_ISTRUCT_NEWTYPE_STRUCT {
+            let mut rbs = RawBytesSerializer{ ser: self };
+            return value.serialize(&mut rbs);
         }
         value.serialize(self)
     }
@@ -328,7 +360,8 @@ impl<'a, W: Write> ser::Serializer for &'a mut Serializer<W> {
         Ok(self)
     }
 
-    fn serialize_struct(self, _name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeStruct> {
+        println!("SER struct name: {name}");
         self.serialize_map(Some(len))
     }
 

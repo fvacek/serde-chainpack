@@ -5,6 +5,7 @@ pub mod types;
 pub mod cpdatetime;
 pub mod cpdecimal;
 mod rawbytes;
+pub mod cpistruct;
 
 // pub use cpdecimal::CPDecimal as Decimal;
 // pub use cpdatetime::CPDateTime as DateTime;
@@ -13,7 +14,7 @@ mod rawbytes;
 mod tests {
     use chrono::DateTime;
     use serde::{Deserialize, Serialize};
-    use crate::{cpdatetime::CPDateTime, cpdecimal::CPDecimal, de::from_slice, ser::tests::to_vec};
+    use crate::{cpdatetime::CPDateTime, cpdecimal::CPDecimal, cpistruct::CPIStruct, de::from_slice, ser::tests::to_vec};
 
     fn hex_dump(data: &[u8]) -> String {
         let mut output = String::new();
@@ -58,25 +59,25 @@ mod tests {
         output
     }
 
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
-    struct SubStruct {
-        number: i32,
-    }
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
-    struct MyStruct {
-        numbers: Vec<i32>,
-        both: (CPDateTime, i64),
-        sub: SubStruct,
-        timestamp: CPDateTime,
-        decimal: CPDecimal,
-        maybe_decimal: Option<CPDecimal>,
-        name: String,
-        age: u32,
-        salary: i32,
-        weight: f64,
-    }
     #[test]
     fn test_struct_serde() {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct SubStruct {
+            number: i32,
+        }
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct MyStruct {
+            numbers: Vec<i32>,
+            both: (CPDateTime, i64),
+            sub: SubStruct,
+            timestamp: CPDateTime,
+            decimal: CPDecimal,
+            maybe_decimal: Option<CPDecimal>,
+            name: String,
+            age: u32,
+            salary: i32,
+            weight: f64,
+        }
         let dt = DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z").unwrap();
         let s = MyStruct {
             numbers: vec![1, 2, 3, 4, 5],
@@ -91,8 +92,24 @@ mod tests {
             weight: 70.5,
         };
         let serialized = to_vec(&s).expect("serialization failed");
-        println!("Serialized: \n{}", hex_dump(&serialized));
+        // println!("Serialized: \n{}", hex_dump(&serialized));
         let deserialized: MyStruct = from_slice(&serialized).expect("deserialization failed");
         assert_eq!(s, deserialized);
+    }
+
+    #[test]
+    fn test_istruct_serde() {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct Struct {
+            #[serde(rename = "1")]
+            number: i32,
+        }
+        let s = Struct { number: 42 };
+        let is = CPIStruct(s);
+        let serialized = to_vec(&is).expect("serialization failed");
+        println!("Serialized: \n{}", hex_dump(&serialized));
+        let deserialized: CPIStruct<Struct> = from_slice(&serialized).expect("deserialization failed");
+        println!("Deserialized: {deserialized:?}");
+        assert_eq!(is, deserialized);
     }
 }
