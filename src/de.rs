@@ -3,6 +3,7 @@ use std::io::{Read, BufReader};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use crate::cpdatetime::CP_DATETIME_NEWTYPE_STRUCT;
 use crate::cpdecimal::{DecimalDeserializer, CP_DECIMAL_NEWTYPE_STRUCT};
+use crate::cpistruct::CP_ISTRUCT_NEWTYPE_STRUCT;
 use crate::error::{Result, Error};
 use crate::types;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -169,7 +170,9 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             }
             types::CP_LIST => visitor.visit_seq(self),
             types::CP_MAP => visitor.visit_map(self),
-            types::CP_IMAP => visitor.visit_map(self),
+            types::CP_IMAP => {
+                visitor.visit_map(self)
+            }
             types::CP_FALSE => visitor.visit_bool(false),
             types::CP_TRUE => visitor.visit_bool(true),
             types::CP_NULL => visitor.visit_unit(),
@@ -201,6 +204,9 @@ impl<'de, 'a, R: Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             return self.deserialize_any(visitor)
         }
         else if name == CP_DECIMAL_NEWTYPE_STRUCT {
+            return self.deserialize_any(visitor)
+        }
+        else if name == CP_ISTRUCT_NEWTYPE_STRUCT {
             return self.deserialize_any(visitor)
         }
         visitor.visit_newtype_struct(self)
@@ -236,7 +242,7 @@ impl<'de, 'a, R: Read> SeqAccess<'de> for &'a mut Deserializer<R> {
         if self.peek_u8()? == types::CP_TERM {
             self.next_u8()?;
             return Ok(None);
-        }
+    }
         seed.deserialize(&mut **self).map(Some)
     }
 }
@@ -252,7 +258,6 @@ impl<'de, 'a, R: Read> MapAccess<'de> for &'a mut Deserializer<R> {
                 self.next_u8()?;
                 return Ok(None);
             }
-            println!("MAP KEY");
             seed.deserialize(&mut **self).map(Some)
         }
 
@@ -260,7 +265,6 @@ impl<'de, 'a, R: Read> MapAccess<'de> for &'a mut Deserializer<R> {
     where
         V: de::DeserializeSeed<'de>,
     {
-        println!("MAP VALUE");
         seed.deserialize(&mut **self)
     }
 }

@@ -2,13 +2,6 @@ use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use serde_chainpack::{de::Deserializer, ser::Serializer, types::{CP_BLOB, CP_DOUBLE, CP_INT, CP_LIST, CP_MAP, CP_NULL, CP_STRING, CP_TERM, CP_UINT}};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct TestStruct {
-    a: i32,
-    b: String,
-}
-
-
 #[test]
 fn test_bool() {
     let mut buffer = Vec::new();
@@ -153,6 +146,12 @@ fn test_map() {
 
 #[test]
 fn test_struct() {
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct TestStruct {
+        a: i32,
+        b: String,
+    }
+
     let mut buffer = Vec::new();
     let mut serializer = Serializer::new(&mut buffer);
     let test_struct = TestStruct {
