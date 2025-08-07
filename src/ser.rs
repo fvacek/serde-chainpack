@@ -77,8 +77,7 @@ impl<'s, 'a, W: Write> ser::SerializeStruct for &'s mut RawBytesSerializer<'a, W
         T: Serialize,
     {
         let k = key.parse::<i64>().map_err(|e| Error::custom(e.to_string()))?;
-        self.ser.writer.write_u8(types::CP_INT)?;
-        k.serialize(&mut **self)?;
+        k.serialize(&mut *self.ser)?;
         value.serialize(&mut *self.ser)
     }
 

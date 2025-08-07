@@ -91,7 +91,7 @@ mod tests {
         assert_eq!(
             buffer,
             vec![
-                CP_IMAP, 0x81, 0x01, 0x41, 0x81, 0x03, CP_STRING, 5,b'h', b'e', b'l', b'l', b'o', CP_TERM
+                CP_IMAP, 0x41, 0x41, 0x43, CP_STRING, 5,b'h', b'e', b'l', b'l', b'o', CP_TERM
             ]
         );
 
