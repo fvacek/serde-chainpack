@@ -71,16 +71,16 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use crate::{cpistruct::CPIStruct, de::Deserializer, ser::Serializer, types::{CP_IMAP, CP_STRING, CP_TERM}};
 
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
-    struct TestIStruct {
-        #[serde(rename = "1")]
-        foo: i32,
-        #[serde(rename = "3")]
-        bar: String,
-    }
-
     #[test]
     fn test_istruct() {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct TestIStruct {
+            #[serde(rename = "1")]
+            foo: i32,
+            #[serde(rename = "3")]
+            bar: String,
+        }
+
         let mut buffer = Vec::new();
         let mut serializer = Serializer::new(&mut buffer);
         let test_struct = CPIStruct(TestIStruct {
@@ -97,6 +97,38 @@ mod tests {
 
         let mut deserializer = Deserializer::from_reader(&buffer[..]);
         let value: CPIStruct<TestIStruct> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
+        assert_eq!(value, test_struct);
+    }
+
+    #[test]
+    fn test_istruct_generic() {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        struct TestIStruct<T> {
+            #[serde(rename = "1")]
+            foo: i32,
+            #[serde(rename = "3")]
+            bar: String,
+            #[serde(rename = "42")]
+            custom: T
+        }
+
+        let mut buffer = Vec::new();
+        let mut serializer = Serializer::new(&mut buffer);
+        let test_struct = CPIStruct(TestIStruct {
+            foo: 1,
+            bar: "hello".to_string(),
+            custom: "world".to_string()
+        });
+        test_struct.serialize(&mut serializer).unwrap();
+        assert_eq!(
+            buffer,
+            vec![
+                CP_IMAP, 0x41, 0x41, 0x43, CP_STRING, 5, b'h', b'e', b'l', b'l', b'o', 106, CP_STRING, 5, b'w', b'o', b'r', b'l', b'd', CP_TERM
+            ]
+        );
+
+        let mut deserializer = Deserializer::from_reader(&buffer[..]);
+        let value: CPIStruct<TestIStruct<String>> = serde::Deserialize::deserialize(&mut deserializer).unwrap();
         assert_eq!(value, test_struct);
     }
 
